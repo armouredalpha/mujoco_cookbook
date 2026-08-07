@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building Mobile Manipulators — MuJoCo &amp; ROS2 Cookbook</title>
+<style>
+    /* ── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+        --green: #2fbf71;
+        --green-dark: #34c07a;
+        --green-light: #eafcf1;
+        --green-mid: #4fd693;
+        --green-pale: #d7f7e5;
+        --danger: #c0392b;
+        --danger-dark: #96281b;
+        --danger-light: #fdecea;
+        --warn: #b7791f;
+        --warn-light: #fff8e8;
+        --sidebar-bg: #2fa663;
+        --sidebar-bg2: #279357;
+        --sidebar-txt: #f0fdf5;
+        --sidebar-w: 290px;
+        --body-bg: #f6faf7;
+        --card-bg: #ffffff;
+        --text: #23302a;
+        --muted: #61756b;
+        --border: #dfeae3;
+        --code-bg: #f2f8f4;
+        --code-border: #d9e8de;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 18px;
+        line-height: 1.75;
+        color: var(--text);
+        background: var(--body-bg);
+        display: flex;
+        min-height: 100vh;
+    }
+
+    ::selection { background: var(--green-pale); color: var(--green-dark); }
+
+    /* ── Sidebar ──────────────────────────────────────── */
+    #sidebar {
+        width: var(--sidebar-w);
+        min-width: var(--sidebar-w);
+        background: linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg2) 100%);
+        color: var(--sidebar-txt);
+        position: fixed;
+        top: 0; left: 0;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        z-index: 100;
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .sidebar-brand {
+        background: linear-gradient(120deg, #0d3a22, #145c37);
+        padding: 26px 18px;
+        border-bottom: 3px solid var(--green-mid);
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    .sidebar-brand::after {
+        content: '';
+        position: absolute;
+        top: -40%; right: -20%;
+        width: 140px; height: 140px;
+        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+        animation: float 6s ease-in-out infinite;
+    }
+    @keyframes float {
+        0%,100% { transform: translate(0,0); }
+        50% { transform: translate(-10px, 12px); }
+    }
+    .sidebar-brand .project-name { font-size: 1.5em; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; position: relative; line-height: 1.25; text-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+    .sidebar-brand .project-sub { font-size: 0.85em; color: rgba(255,255,255,0.85); margin-top: 6px; position: relative; }
+
+    .sidebar-nav { padding: 14px 0 40px; flex: 1; overflow-y: auto; }
+    .sidebar-nav::-webkit-scrollbar { width: 8px; }
+    .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+
+    .nav-section-title {
+        font-size: 0.72em;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #0d3a22;
+        padding: 16px 18px 6px;
+        font-weight: 800;
+    }
+
+    .nav-item {
+        display: block;
+        padding: 7px 18px 7px 22px;
+        color: #ffffff;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+        text-decoration: none;
+        font-size: 0.88em;
+        font-weight: 500;
+        border-left: 3px solid transparent;
+        transition: all 0.18s ease;
+        line-height: 1.4;
+    }
+    .nav-item:hover { color: #fff; background: rgba(0,0,0,0.16); border-left-color: #ffffff; padding-left: 26px; }
+    .nav-item.active { color: #0d3a22; background: #ffffff; border-left-color: #0d3a22; font-weight: 700; text-shadow: none; }
+    .nav-item.sub { padding-left: 34px; font-size: 0.82em; font-weight: 400; color: rgba(255,255,255,0.92); }
+    .nav-item.sub:hover { padding-left: 38px; color: #fff; }
+    .nav-item.sub.active { color: #0d3a22; font-weight: 700; }
+
+    /* ── Main Content ─────────────────────────────────── */
+    #main { margin-left: var(--sidebar-w); flex: 1; min-width: 0; }
+
+    .topbar {
+        background: rgba(255,255,255,0.9);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid var(--border);
+        padding: 12px 40px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        box-shadow: 0 1px 6px rgba(20,60,35,0.05);
+    }
+    .topbar-crumb { font-size: 0.82em; color: var(--muted); }
+    .topbar-crumb a { color: var(--green); text-decoration: none; font-weight: 600; }
+    .topbar-crumb a:hover { text-decoration: underline; }
+    .topbar-sep { color: var(--border); }
+
+    .content { max-width: 1180px; padding: 40px 60px 100px; text-align: center; margin: 0 auto; }
+
+    /* ── Typography ───────────────────────────────────── */
+    h1, h2, h3, h4 { color: #1c2b22; font-weight: 700; margin-top: 2.1rem; margin-bottom: 0.6rem; line-height: 1.3; text-align: center; }
+
+    h1 {
+        font-size: 2.3em;
+        padding-bottom: 12px;
+        border-bottom: 3px solid var(--green);
+        margin-bottom: 1rem;
+        color: var(--green-dark);
+        position: relative;
+    }
+    h1:first-child { margin-top: 0; }
+    h1::after {
+        content: '';
+        position: absolute;
+        left: 50%; bottom: -3px;
+        height: 3px; width: 60px;
+        background: var(--green-mid);
+        transform: translateX(-50%);
+        animation: growLine 0.8s ease forwards;
+    }
+    @keyframes growLine { from { width: 0; } to { width: 60px; } }
+
+    h2 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 6px; color: var(--green-dark); }
+    h3 { font-size: 1.3em; color: var(--green); }
+    h4 { font-size: 1.1em; color: #445048; }
+
+    p { margin-bottom: 0.9rem; text-align: center; }
+    ul, ol { padding-left: 28px; margin-bottom: 1rem; text-align: left; display: inline-block; }
+    li { margin-bottom: 5px; text-align: left; }
+
+    a { color: var(--green); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .15s; }
+    a:hover { border-bottom-color: var(--green); }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.2rem 0; }
+
+    strong { color: #1c2b22; }
+
+    /* subtitle under main title */
+    .subtitle { border: none; margin-top: 0; color: var(--muted); font-size: 1.05em; font-weight: 400; padding-bottom: 0; }
+
+    /* ── Reveal-on-scroll animation ───────────────────── */
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal.in-view { opacity: 1; transform: translateY(0); }
+
+    /* ── Quote / build-callout ────────────────────────── */
+    .build-quote {
+        background: linear-gradient(135deg, var(--green-light), #ffffff);
+        border-left: 4px solid var(--green);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 1rem 0 1.5rem;
+        font-size: 0.95em;
+        text-align: left;
+    }
+
+    /* ── Code Blocks ──────────────────────────────────── */
+    code {
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        font-size: 0.87em;
+        background: var(--code-bg);
+        color: var(--green-dark);
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid var(--code-border);
+    }
+
+    pre {
+        background: #10201a;
+        color: #e7f6ec;
+        border-radius: 8px;
+        padding: 18px 20px;
+        overflow-x: auto;
+        margin: 1rem 0 1.4rem;
+        position: relative;
+        border: 1px solid #0a1712;
+        line-height: 1.55;
+        box-shadow: 0 4px 16px rgba(10,30,20,0.12);
+        text-align: left;
+    }
+    pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        border: none;
+        font-size: 0.86em;
+        white-space: pre;
+    }
+
+    .pre-lang {
+        position: absolute;
+        top: 10px; left: 16px;
+        font-size: 0.68em;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: rgba(231,246,236,0.4);
+        font-family: monospace;
+    }
+    pre.has-lang code { display: block; margin-top: 20px; }
+
+    /* copy button */
+    .copy-btn {
+        position: absolute;
+        top: 10px; right: 10px;
+        background: rgba(255,255,255,0.08);
+        color: #cfe9d8;
+        border: 1px solid rgba(255,255,255,0.18);
+        padding: 4px 11px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.74em;
+        font-family: inherit;
+        letter-spacing: 0.3px;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .copy-btn:hover { background: var(--green-mid); color: #fff; border-color: var(--green-mid); }
+    .copy-btn.copied { background: var(--green); color: #fff; border-color: var(--green); }
+
+    /* ── Callout Boxes ────────────────────────────────── */
+    .callout {
+        border-radius: 6px;
+        padding: 14px 18px;
+        margin: 1.2rem 0;
+        border-left: 4px solid;
+        font-size: 0.93em;
+        transition: transform .15s ease;
+        text-align: left;
+    }
+    .callout:hover { transform: translateX(2px); }
+
+    .callout-note   { background: var(--warn-light); border-color: var(--warn); }
+    .callout-tip    { background: var(--green-light); border-color: var(--green-mid); }
+    .callout-danger { background: var(--danger-light); border-color: var(--danger); }
+
+    .callout strong:first-child { display: block; margin-bottom: 4px; }
+    .callout-note strong:first-child   { color: var(--warn); }
+    .callout-tip strong:first-child    { color: var(--green-dark); }
+    .callout-danger strong:first-child { color: var(--danger-dark); }
+
+    /* ── Terminal block ───────────────────────────────── */
+    .terminal {
+        background: #0e1b16;
+        color: #d7ece0;
+        border-radius: 9px;
+        overflow: hidden;
+        margin: 1rem 0 1.4rem;
+        border: 1px solid #06120d;
+        position: relative;
+        box-shadow: 0 6px 18px rgba(10,30,20,0.14);
+        transition: box-shadow .2s ease, transform .2s ease;
+    }
+    .terminal:hover { box-shadow: 0 8px 24px rgba(10,30,20,0.2); transform: translateY(-1px); }
+
+    .terminal-bar { background: #17281f; padding: 8px 14px; display: flex; align-items: center; gap: 6px; }
+    .terminal-bar .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .terminal-bar .dot.r { background: #ff5f57; }
+    .terminal-bar .dot.y { background: #ffbd2e; }
+    .terminal-bar .dot.g { background: #2fbf5a; }
+    .terminal-bar .tbar-label { margin-left: 8px; font-size: 0.78em; color: rgba(215,236,224,0.5); font-family: monospace; }
+    .terminal-bar .copy-btn { position: static; margin-left: auto; }
+
+    .terminal-body {
+        padding: 16px 20px;
+        font-family: 'SFMono-Regular', Consolas, monospace;
+        font-size: 0.86em;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        text-align: left;
+    }
+    .terminal-body .prompt { color: var(--green-mid); user-select: none; }
+
+    /* ── Table ────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(20,60,35,0.06); text-align: left; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.91em; }
+    th { background: var(--green-dark); color: #fff; padding: 11px 14px; text-align: left; font-weight: 600; }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); background: #fff; }
+    tr:nth-child(even) td { background: var(--green-light); }
+    tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background .15s ease; }
+    tbody tr:hover td { background: var(--green-pale); }
+
+    /* exercise card */
+    .exercise-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--green);
+        border-radius: 8px;
+        padding: 18px 22px;
+        margin: 1.2rem 0 1.6rem;
+        box-shadow: 0 2px 12px rgba(20,60,35,0.05);
+        text-align: left;
+    }
+    .exercise-card h3 { margin-top: 0; text-align: left; }
+    .exercise-end {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82em;
+        color: var(--green-dark);
+        font-weight: 600;
+        background: var(--green-light);
+        border: 1px dashed var(--green-mid);
+        border-radius: 20px;
+        padding: 4px 14px;
+        margin: 0.6rem 0 1rem;
+    }
+
+    /* ── Images ───────────────────────────────────────── */
+    .img-frame {
+        margin: 1rem 0 1.4rem;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        box-shadow: 0 4px 18px rgba(20,60,35,0.08);
+        transition: transform .25s ease, box-shadow .25s ease;
+    }
+    .img-frame:hover { transform: scale(1.01); box-shadow: 0 10px 30px rgba(20,60,35,0.14); }
+    .img-frame img { display: block; width: 100%; height: auto; }
+
+    .img-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 1rem 0 1.4rem; }
+    .img-row .img-frame { margin: 0; }
+    @media (max-width: 700px) { .img-row { grid-template-columns: 1fr; } }
+
+    /* ── Completion banner ────────────────────────────── */
+    .completion-banner {
+        background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 100%);
+        color: #fff;
+        border-radius: 12px;
+        padding: 34px 38px;
+        margin: 2.2rem 0 1rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .completion-banner::before {
+        content: '';
+        position: absolute;
+        top: -60%; left: -20%;
+        width: 300px; height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+        animation: float 8s ease-in-out infinite;
+    }
+    .completion-banner h2 { color: #fff; border: none; font-size: 1.7em; margin-bottom: 8px; position: relative; }
+    .completion-banner p { margin: 10px 0; opacity: 0.95; position: relative; max-width: 640px; margin-left: auto; margin-right: auto; }
+    .completion-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.18);
+        border: 2px solid rgba(255,255,255,0.5);
+        border-radius: 30px;
+        padding: 8px 24px;
+        margin-top: 14px;
+        font-weight: 700;
+        font-size: 1.02em;
+        letter-spacing: 0.5px;
+        position: relative;
+    }
+
+    /* ── Back-to-top button ───────────────────────────── */
+    #to-top {
+        position: fixed;
+        right: 30px; bottom: 30px;
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        background: var(--green);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 6px 18px rgba(27,138,74,0.4);
+        opacity: 0; pointer-events: none;
+        transform: translateY(10px);
+        transition: all .25s ease;
+        z-index: 60;
+        font-size: 1.1em;
+    }
+    #to-top.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    #to-top:hover { background: var(--green-dark); }
+
+    /* reading progress bar */
+    #read-progress {
+        position: fixed;
+        top: 0; left: var(--sidebar-w); right: 0;
+        height: 3px;
+        background: transparent;
+        z-index: 101;
+    }
+    #read-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--green-mid), var(--green));
+        transition: width .1s linear;
+    }
+
+    /* ── Responsive ───────────────────────────────────── */
+    @media (max-width: 900px) {
+        #sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+        #sidebar.open { transform: translateX(0); }
+        #main { margin-left: 0; }
+        .content { padding: 24px 22px 60px; }
+        .topbar { padding: 12px 22px; }
+        #read-progress { left: 0; }
+    }
+    @media (max-width: 600px) {
+        h1 { font-size: 1.5em; }
+        .img-row { grid-template-columns: 1fr; }
+    }
+
+    #menu-toggle {
+        display: none;
+        background: var(--green);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        font-size: 0.9em;
+    }
+    @media (max-width: 900px) { #menu-toggle { display: inline-flex; } }
+</style>
+</head>
+
+<body>
+
+<div id="read-progress"><div id="read-progress-fill"></div></div>
+
+<!-- ═══════════════════════════════════════════════════════ SIDEBAR -->
+<nav id="sidebar">
+    <div class="sidebar-brand">
+        <div class="project-name">Mobile Manipulators</div>
+        <div class="project-sub">MuJoCo &amp; ROS2 Simulation Cookbook</div>
+    </div>
+
+    <div class="sidebar-nav">
+        <div class="nav-section-title">Overview</div>
+        <a class="nav-item" href="#top">Workshop Overview</a>
+        <a class="nav-item" href="#roadmap">Session Roadmap</a>
+
+        <div class="nav-section-title">Part 1 — MuJoCo Basics</div>
+        <a class="nav-item" href="#sec1-1">1.1 Launching the Simulator</a>
+        <a class="nav-item" href="#sec1-2">1.2 Force &amp; Torque</a>
+
+        <div class="nav-section-title">Part 2 — Mobile Manipulator</div>
+        <a class="nav-item" href="#sec2-1">2.1 The Robot Base</a>
+        <a class="nav-item" href="#sec2-2">2.2 The Robot Arm</a>
+        <a class="nav-item" href="#sec2-3">2.3 Mounting the Arm</a>
+        <a class="nav-item" href="#sec2-4">2.4 Adding to a Scene</a>
+        <a class="nav-item sub" href="#sec2-4-debug">Debug: Buried Robot</a>
+        <a class="nav-item" href="#sec2-5">2.5 Testing the Simulation</a>
+
+        <div class="nav-section-title">Part 3 — Sensors &amp; Python</div>
+        <a class="nav-item" href="#sec3-1">3.1 Adding Sensors</a>
+        <a class="nav-item" href="#sec3-2">3.2 Sensing + Python Control</a>
+
+        <div class="nav-section-title">Part 4 — ROS2 Integration</div>
+        <a class="nav-item" href="#sec4-1">4.1 Custom Interfaces</a>
+        <a class="nav-item" href="#sec4-2">4.2 MuJoCo–ROS2 Bridge</a>
+        <a class="nav-item" href="#sec4-3">4.3 Obstacle Avoidance</a>
+
+        <div class="nav-section-title">Part 5 — Take-Home</div>
+        <a class="nav-item" href="#sec5">Humanoid / Quadruped Challenge</a>
+
+        <div class="nav-section-title">Wrap Up</div>
+        <a class="nav-item" href="#congrats">Congratulations</a>
+    </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════ MAIN -->
+<div id="main">
+
+    <div class="topbar">
+        <button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+        <span class="topbar-crumb">
+            <a href="#top">MuJoCo Cookbook</a>
+            <span class="topbar-sep"> / </span>
+            Building Mobile Manipulators
+        </span>
+    </div>
+
+    <div class="content">
+
+        <h1 id="top">Building Mobile Manipulators</h1>
+        <h2 class="subtitle">Hands-On Workshop — MuJoCo Simulation &amp; ROS2 Integration</h2>
+
+        <div class="build-quote reveal">
+            <strong>What you'll build:</strong> A mobile manipulator ("Robot Crane") — a differential-drive base with a 4-DOF arm and gripper — simulated in MuJoCo, fitted with sensors, and driven by an obstacle-avoidance program.
+        </div>
+
+        <hr>
+
+        <!-- ══════════════════ ROADMAP ══════════════════ -->
+        <h1 id="roadmap" class="reveal">Session Roadmap</h1>
+
+        <div class="table-wrap reveal">
+            <table>
+                <thead><tr><th>Part</th><th>Topic</th><th>You'll do this live</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>MuJoCo Basics — Cube Warm-Up</td><td>Live</td></tr>
+                    <tr><td>2</td><td>Building the Mobile Manipulator</td><td>Live</td></tr>
+                    <tr><td>3</td><td>Adding Sensors + Python Control</td><td>Live</td></tr>
+                    <tr><td>4</td><td>ROS2 Integration + Obstacle Avoidance</td><td>Live (packages provided as starter code — you'll focus on the obstacle-avoidance logic)</td></tr>
+                    <tr><td>5</td><td>Humanoid / Quadruped Challenge</td><td>Take-home assignment</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <hr>
+
+        <!-- ══════════════════ PART 1 ══════════════════ -->
+        <h1 class="reveal">Part 1 — MuJoCo Basics: The Cube Warm-Up</h1>
+
+        <h2 id="sec1-1" class="reveal">1.1 Launching the Simulator</h2>
+        <p class="reveal">Launch the sample scene to get familiar with the MuJoCo interface.</p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar">
+                <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+                <span class="tbar-label">terminal</span>
+                <button class="copy-btn" onclick="copyTerminal(this)">Copy</button>
+            </div>
+            <div class="terminal-body">cd ~/ros2_ws/mujoco/bin
+./simulate ~/ros2_ws/mujoco_course_files/mjcf_basics/simple_scene.mjcf</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong></p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/01-mujoco-gui-launch.png" alt="MuJoCo GUI launched with simple scene"></div>
+
+        <p class="reveal">The application window has <strong>three</strong> distinct parts:</p>
+        <ul class="reveal">
+            <li><strong>Menu Panel</strong> (Left) — all configuration for the MuJoCo application and the simulation scene.</li>
+        </ul>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/02-menu-panel-closeup.png" alt="Menu panel closeup"></div>
+        <ul class="reveal">
+            <li><strong>Simulation Scene</strong> (Center) — the environment where the robot and other objects live.</li>
+            <li><strong>Joints and Controls Panel</strong> (Right) — shows estimated current joint positions and graphical sliders for joint control. Sub-menus here usually open in a <strong>collapsed</strong> view by default.</li>
+        </ul>
+        <div class="img-row reveal">
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/03-joints-controls-panel.png" alt="Joints and controls panel"></div>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/04-collapsed-submenus.png" alt="Collapsed sub-menus"></div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec1-2" class="reveal">1.2 Activity: Apply Force and Torque</h2>
+        <p class="reveal">MuJoCo lets you manipulate a model in the scene using simulated <strong>translational</strong> (force) or <strong>rotational</strong> (torque) forces.</p>
+
+        <p class="reveal"><strong>Selecting a part:</strong></p>
+        <ul class="reveal">
+            <li><strong>Double-click</strong> a model part to select it (it highlights).</li>
+            <li><strong>Double-click</strong> anywhere outside the model (e.g., the ground plane) to deselect.</li>
+        </ul>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> Watch the orange-yellow cube brighten from dark to light yellow when selected.</div>
+
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/05-select-and-force-test.png" alt="Selecting the cube and force testing"></div>
+
+        <h3 class="reveal">Force Testing</h3>
+        <p class="reveal">To apply a <strong>linear force</strong> (translate the model along any of the 3 axes):</p>
+        <ol class="reveal">
+            <li>Double-click the part to select/highlight it.</li>
+            <li>Hold <strong>Ctrl</strong>, <strong>right-click</strong> on the part, and <strong>drag</strong> in the desired direction.</li>
+            <li>A red line appears showing the direction of applied force.</li>
+        </ol>
+        <div class="callout callout-tip reveal"><strong>Shortcut</strong> <code>Ctrl + Right-Click + Drag</code></div>
+
+        <h3 class="reveal">Torque Testing</h3>
+        <p class="reveal">To apply an <strong>angular force</strong> (rotate the model along any of the 3 axes):</p>
+        <ol class="reveal">
+            <li>Double-click the part to select/highlight it.</li>
+            <li>Hold <strong>Ctrl</strong>, <strong>left-click</strong> on the part, and <strong>drag</strong> in the desired direction.</li>
+            <li>A red box/arc appears showing the direction of applied torque.</li>
+        </ol>
+        <div class="callout callout-tip reveal"><strong>Shortcut</strong> <code>Ctrl + Left-Click + Drag</code></div>
+
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/06-torque-test.png" alt="Torque testing on the cube"></div>
+
+        <div class="callout callout-tip reveal"><strong>Tip</strong> You can adjust the magnitude of force/torque applied via the <strong>Force</strong> and <strong>Torque</strong> values in the <strong>Map</strong> sub-menu under the <strong>Visualization</strong> menu.</div>
+
+        <hr>
+
+        <!-- ══════════════════ PART 2 ══════════════════ -->
+        <h1 class="reveal">Part 2 — Building the Mobile Manipulator</h1>
+        <p class="reveal">We'll build the <strong>Robot Crane</strong>: a differential-drive base, a 4-DOF arm with a gripper, mounted together into one model.</p>
+
+        <h2 id="sec2-1" class="reveal">2.1 The Robot Base (Differential Drive)</h2>
+        <p class="reveal">The base is a simple cuboid chassis with two driven cylindrical wheels, a spherical caster wheel, and small axle/support bodies.</p>
+
+        <div class="img-row reveal">
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/07-robot-base-design.png" alt="Robot base design"></div>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/08-robot-base-six-views.png" alt="Robot base — six-sided view"></div>
+        </div>
+        <div class="img-row reveal">
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/09a-robot-base-fixtures-a.png" alt="Robot base fixtures — axles and caster support, view A"></div>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/09b-robot-base-fixtures-b.png" alt="Robot base fixtures — axles and caster support, view B"></div>
+        </div>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> These images use MuJoCo's "perspective view," not "orthographic view" — the caster and drive wheels are at the same ground level even if they don't look aligned.</div>
+
+        <div class="exercise-card reveal">
+            <h3>Exercise 2.1 — Create the Robot Base</h3>
+
+            <p><strong>Step 1.</strong> Create the file:</p>
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+touch robot_base.mjcf</div>
+            </div>
+
+            <p><strong>Step 2.</strong> Open <code>robot_base.mjcf</code> in your IDE and paste:</p>
+
+            <pre class="has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0" ?&gt;
+
+&lt;mujoco model="robot_base"&gt;
+
+  &lt;visual&gt;
+    &lt;headlight diffuse="0.75 0.75 0.75" ambient="0.50 0.50 0.50" specular="0.25 0.25 0.25"/&gt;
+    &lt;rgba haze="0.20 0.40 0.60 1.00"/&gt;
+    &lt;global fovy="30" azimuth="-135" elevation="15"/&gt;
+  &lt;/visual&gt;
+
+  &lt;statistic center="0 0 0" extent="0.50"/&gt;
+
+  &lt;default&gt;
+    &lt;joint limited="false" armature="0.01"/&gt;
+    &lt;equality solref="0.0002 1" solimp="0.99 0.99 0.0001"/&gt;
+  &lt;/default&gt;
+
+  &lt;worldbody&gt;
+
+    &lt;body name="link_chassis" pos="0 0 0" euler="0 0 0"&gt;
+    &lt;geom type="box" size="0.150 0.100 0.050" rgba="1 0 0 1"/&gt;
+    &lt;inertial pos="0 0 0" mass="3.000"
+              diaginertia="0.012500000000000 0.025000000000000 0.032500000000000"/&gt;
+
+      &lt;body name="link_axle_left" pos="-0.100 0.11250 -0.02500" euler="90 0 0"&gt;
+      &lt;geom type="cylinder" size="0.010 0.01250" rgba="0.25 0.25 0.25 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="0.250"
+                diaginertia="0.000019270833333 0.000019270833333 0.000012500000000"/&gt;
+        &lt;body name="link_wheel_left" pos="0 0 -0.005" euler="0 0 0"&gt;
+        &lt;joint name="joint_axle_left_to_wheel_left" type="hinge" axis="0 0 -1" pos="0 0 0" damping="0.2"/&gt;
+        &lt;geom type="cylinder" size="0.050 0.01250" rgba="0 1 0 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.750"
+                  diaginertia="0.000507812500000 0.000507812500000 0.000937500000000"/&gt;
+        &lt;/body&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_axle_right" pos="-0.100 -0.11250 -0.02500" euler="90 0 0"&gt;
+      &lt;geom type="cylinder" size="0.010 0.01250" rgba="0.25 0.25 0.25 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="0.250"
+                diaginertia="0.000019270833333 0.000019270833333 0.000012500000000"/&gt;
+        &lt;body name="link_wheel_right" pos="0 0 0.005" euler="0 0 0"&gt;
+        &lt;joint name="joint_axle_right_to_wheel_right" type="hinge" axis="0 0 -1" pos="0 0 0" damping="0.2"/&gt;
+        &lt;geom type="cylinder" size="0.050 0.01250" rgba="0 0 1 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.750"
+                  diaginertia="0.000507812500000 0.000507812500000 0.000937500000000"/&gt;
+        &lt;/body&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_support_caster" pos="0.125 0.000 -0.05250" euler="0 0 0"&gt;
+      &lt;geom type="box" size="0.025 0.025 0.00250" rgba="0.25 0.25 0.25 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="0.250"
+                diaginertia="0.000052604166667 0.000052604166667 0.000104166666667"/&gt;
+        &lt;body name="link_wheel_caster" pos="0.0 0.0 -0.00250" euler="0 0 0"&gt;
+        &lt;geom type="sphere" size="0.020" rgba="1.0 0.5 0.0 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.250"
+                  diaginertia="0.000040000000000 0.000040000000000 0.000040000000000"/&gt;
+        &lt;/body&gt;
+      &lt;/body&gt;
+
+    &lt;/body&gt;
+
+  &lt;/worldbody&gt;
+
+  &lt;actuator&gt;
+    &lt;motor name="wheel_left" ctrllimited="true" ctrlrange="-2.5 2.5" gear="1" joint="joint_axle_left_to_wheel_left"/&gt;
+    &lt;motor name="wheel_right" ctrllimited="true" ctrlrange="-2.5 2.5" gear="1" joint="joint_axle_right_to_wheel_right"/&gt;
+  &lt;/actuator&gt;
+
+  &lt;contact&gt;
+    &lt;exclude body1="link_axle_left" body2="link_wheel_left"/&gt;
+    &lt;exclude body1="link_axle_right" body2="link_wheel_right"/&gt;
+  &lt;/contact&gt;
+
+&lt;/mujoco&gt;</code></pre>
+
+            <p><strong>Step 3.</strong> Launch it:</p>
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./robot_base.mjcf</div>
+            </div>
+
+            <p><strong>Expected Output:</strong></p>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/10-robot-base-launched.png" alt="Robot base launched in MuJoCo"></div>
+
+            <h4>Understanding the Robot Base MJCF</h4>
+            <ul>
+                <li>The <code>&lt;mujoco model="robot_base"&gt;</code> tag wraps the entire model definition.</li>
+                <li><code>&lt;visual&gt;</code> / <code>&lt;statistic&gt;</code> configure the camera and visualization defaults.</li>
+                <li><code>&lt;default&gt;</code> sets simulation-wide config: since drive wheels use continuously-rotating <strong>hinge</strong> joints, <code>limited="false"</code>. <code>armature</code> is tuned for stability; <code>equality</code> values are generic solver parameters for contact physics.</li>
+                <li>Inside <code>&lt;worldbody&gt;</code>:
+                    <ul>
+                        <li><code>link_chassis</code> is the base box, parent of everything else.</li>
+                        <li><code>link_axle_left</code> / <code>link_axle_right</code> attach directly to the chassis.</li>
+                        <li><code>link_wheel_left</code> / <code>link_wheel_right</code> attach to their axles via <strong>hinge</strong> joints (<code>joint_axle_left_to_wheel_left</code>, <code>joint_axle_right_to_wheel_right</code>).</li>
+                        <li><code>link_support_caster</code> → <code>link_wheel_caster</code> is a <strong>fixed</strong> (no joint) caster assembly.</li>
+                    </ul>
+                </li>
+                <li><code>&lt;actuator&gt;</code> declares <strong>motor</strong> control for both drive-wheel hinge joints, with control ranges.</li>
+                <li><code>&lt;contact&gt;</code> disables contact physics between each axle and its wheel (they'd otherwise collide with themselves).</li>
+            </ul>
+
+            <div class="exercise-end">✓ End of Exercise 2.1</div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec2-2" class="reveal">2.2 The Robot Arm</h2>
+        <p class="reveal">A 4-DOF arm: a rotating base dome, three hinge-jointed links, and a 2-finger gripper.</p>
+
+        <div class="img-row reveal">
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/11a-robot-arm-view-a.png" alt="Robot arm design"></div>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/11b-robot-arm-view-b.png" alt="Robot arm — additional view"></div>
+        </div>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> Perspective view again — dimensions of the same bodies may look different at different angles.</div>
+
+        <div class="exercise-card reveal">
+            <h3>Exercise 2.2 — Create the Robot Arm</h3>
+
+            <p><strong>Step 1.</strong> Create the file:</p>
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+touch robot_arm.mjcf</div>
+            </div>
+
+            <p><strong>Step 2.</strong> Open <code>robot_arm.mjcf</code> and paste:</p>
+
+            <pre class="has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0" ?&gt;
+
+&lt;mujoco model="robot_arm"&gt;
+
+  &lt;visual&gt;
+    &lt;headlight diffuse="0.75 0.75 0.75" ambient="0.50 0.50 0.50" specular="0.25 0.25 0.25"/&gt;
+    &lt;rgba haze="0.20 0.40 0.60 1.00"/&gt;
+    &lt;global fovy="45" azimuth="-135" elevation="-30"/&gt;
+  &lt;/visual&gt;
+
+  &lt;statistic center="0 0 0.20" extent="0.50"/&gt;
+
+  &lt;default&gt;
+    &lt;default class="arm"&gt;
+      &lt;joint limited="true" armature="0.1" damping="1.0"/&gt;
+      &lt;position kp="10" forcerange="-2.0 2.0"/&gt;
+    &lt;/default&gt;
+    &lt;default class="gripper"&gt;
+      &lt;joint limited="true" armature="0.1" damping="1.0"/&gt;
+      &lt;position kp="10" forcerange="-5.0 5.0"/&gt;
+    &lt;/default&gt;
+  &lt;/default&gt;
+
+  &lt;worldbody&gt;
+
+    &lt;body name="link_base_plate" pos="0 0 0.020" euler="0 0 0"&gt;
+      &lt;geom type="box" size="0.050 0.050 0.020" rgba="1.0 0.5 0.0 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="0.200"
+                diaginertia="0.000193333333333 0.000193333333333 0.000333333333333"/&gt;
+
+      &lt;body name="link_base_dome" pos="0 0 0.020" euler="0 0 0"&gt;
+        &lt;geom type="sphere" size="0.040" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;joint name="joint_base_plate_to_base_dome" type="hinge" axis="0 0 1" pos="0 0 0" damping="0.2"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.400"
+                  diaginertia="0.000256000000000 0.000256000000000 0.000256000000000"/&gt;
+
+        &lt;body name="link_arm1" pos="0 0 0.095" euler="0 0 0"&gt;
+          &lt;geom type="cylinder" size="0.010 0.075" rgba="0.75 0.0 0.75 1"/&gt;
+          &lt;joint name="joint_base_dome_to_arm1" type="hinge" axis="0 1 0" pos="0 0 -0.075" damping="0.2"/&gt;
+          &lt;inertial pos="0 0 0" mass="0.300"
+                    diaginertia="0.000570000000000 0.000570000000000 0.000015000000000"/&gt;
+
+          &lt;body name="link_arm_connect1" pos="0 0 0.075" euler="0 0 0"&gt;
+            &lt;geom type="sphere" size="0.015" rgba="0.25 0.25 0.25 1"/&gt;
+            &lt;inertial pos="0 0 0" mass="0.050"
+                      diaginertia="0.000004500000000 0.000004500000000 0.000004500000000"/&gt;
+          &lt;/body&gt;
+
+          &lt;body name="link_arm2" pos="0 0 0.125" euler="0 0 0"&gt;
+            &lt;geom type="cylinder" size="0.008 0.050" rgba="0.75 0.75 0.0 1"/&gt;
+            &lt;joint name="joint_arm1_to_arm2" type="hinge" axis="0 1 0" pos="0 0 -0.050" damping="0.2"/&gt;
+            &lt;inertial pos="0 0 0" mass="0.200"
+                      diaginertia="0.000378200000000 0.000378200000000 0.000006400000000"/&gt;
+
+            &lt;body name="link_arm_connect2" pos="0 0 0.050" euler="0 0 0"&gt;
+              &lt;geom type="sphere" size="0.0125" rgba="0.25 0.25 0.25 1"/&gt;
+              &lt;inertial pos="0 0 0" mass="0.040"
+                        diaginertia="0.000002500000000 0.000002500000000 0.000002500000000"/&gt;
+            &lt;/body&gt;
+
+            &lt;body name="link_arm3" pos="0 0 0.075" euler="0 0 0"&gt;
+              &lt;geom type="cylinder" size="0.006 0.025" rgba="0.0 0.75 0.75 1"/&gt;
+              &lt;joint name="joint_arm2_to_arm3" type="hinge" axis="0 1 0" pos="0 0 -0.025" damping="0.2"/&gt;
+              &lt;inertial pos="0 0 0" mass="0.100"
+                        diaginertia="0.000188400000000 0.000188400000000 0.000001800000000"/&gt;
+
+              &lt;body name="link_arm_connect3" pos="0 0 0.025" euler="0 0 0"&gt;
+                &lt;geom type="sphere" size="0.0075" rgba="0.25 0.25 0.25 1"/&gt;
+                &lt;inertial pos="0 0 0" mass="0.030"
+                        diaginertia="0.000000675000000 0.000000675000000 0.000000675000000"/&gt;
+              &lt;/body&gt;
+
+              &lt;body name="link_base_gripper" pos="0 0 0.030" euler="0 0 0"&gt;
+                &lt;geom type="box" size="0.005 0.025 0.005" rgba="0.50 0.10 0.10 1"/&gt;
+                &lt;inertial pos="0 0 0" mass="0.100"
+                          diaginertia="0.000021666666667 0.000000885416667 0.000020885416667"/&gt;
+
+                &lt;body name="link_finger_left" pos="0 0.015 0.025" euler="0 0 0"&gt;
+                  &lt;geom type="box" size="0.005 0.005 0.025" rgba="0.10 0.50 0.10 1"/&gt;
+                  &lt;joint name="joint_base_gripper_to_finger_left" type="slide" axis="0 1 0" pos="0 0 0" damping="0.2"/&gt;
+                  &lt;inertial pos="0 0 0" mass="0.100"
+                            diaginertia="0.000021666666667 0.000020885416667 0.000000885416667"/&gt;
+                &lt;/body&gt;
+                &lt;body name="link_finger_right" pos="0 -0.015 0.025" euler="0 0 0"&gt;
+                  &lt;geom type="box" size="0.005 0.005 0.025" rgba="0.10 0.10 0.50 1"/&gt;
+                  &lt;joint name="joint_base_gripper_to_finger_right" type="slide" axis="0 -1 0" pos="0 0 0" damping="0.2"/&gt;
+                  &lt;inertial pos="0 0 0" mass="0.100"
+                            diaginertia="0.000021666666667 0.000020885416667 0.000000885416667"/&gt;
+                &lt;/body&gt;
+              &lt;/body&gt;
+            &lt;/body&gt;
+          &lt;/body&gt;
+        &lt;/body&gt;
+      &lt;/body&gt;
+    &lt;/body&gt;
+
+  &lt;/worldbody&gt;
+
+  &lt;actuator&gt;
+    &lt;position class="arm" name="arm_base" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_base_plate_to_base_dome"/&gt;
+    &lt;position class="arm" name="arm_link1" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_base_dome_to_arm1"/&gt;
+    &lt;position class="arm" name="arm_link2" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_arm1_to_arm2"/&gt;
+    &lt;position class="arm" name="arm_link3" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_arm2_to_arm3"/&gt;
+
+    &lt;position class="gripper" name="finger_left" ctrllimited="true" ctrlrange="-0.01 0.01" gear="1" kv="1.0" joint="joint_base_gripper_to_finger_left"/&gt;
+    &lt;position class="gripper" name="finger_right" ctrllimited="true" ctrlrange="-0.01 0.01" gear="1" kv="1.0" joint="joint_base_gripper_to_finger_right"/&gt;
+  &lt;/actuator&gt;
+
+  &lt;contact&gt;
+    &lt;exclude body1="link_base_plate" body2="link_base_dome"/&gt;
+
+    &lt;exclude body1="link_base_dome" body2="link_arm1"/&gt;
+    &lt;exclude body1="link_arm1" body2="link_arm2"/&gt;
+
+    &lt;exclude body1="link_arm_connect1" body2="link_arm2"/&gt;
+    &lt;exclude body1="link_arm2" body2="link_arm3"/&gt;
+
+    &lt;exclude body1="link_arm_connect2" body2="link_arm3"/&gt;
+    &lt;exclude body1="link_arm3" body2="link_base_gripper"/&gt;
+
+    &lt;exclude body1="link_base_gripper" body2="link_finger_left"/&gt;
+    &lt;exclude body1="link_base_gripper" body2="link_finger_right"/&gt;
+  &lt;/contact&gt;
+
+&lt;/mujoco&gt;</code></pre>
+
+            <p><strong>Step 3.</strong> Launch it:</p>
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./robot_arm.mjcf</div>
+            </div>
+
+            <p><strong>Expected Output:</strong></p>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/12-robot-arm-launched.png" alt="Robot arm launched in MuJoCo"></div>
+
+            <h4>Understanding the Robot Arm MJCF</h4>
+            <ul>
+                <li>Two <code>default</code> <strong>classes</strong> are defined: <code>arm</code> (joints + position actuators for arm links) and <code>gripper</code> (joints + position actuators for fingers). Both use <code>limited="true"</code> since arm rotation and gripper travel are bounded — unlike the continuously-spinning wheels.</li>
+                <li><code>armature</code>/<code>damping</code> tune stability; <code>kp</code> (position gain) and <code>forcerange</code> configure the <strong>position controllers</strong> used for these joints.</li>
+                <li>Body chain: <code>link_base_plate</code> → <code>link_base_dome</code> (hinge) → <code>link_arm1</code> (hinge) → <code>link_arm2</code> (hinge) → <code>link_arm3</code> (hinge) → <code>link_base_gripper</code> (fixed) → <code>link_finger_left</code> / <code>link_finger_right</code> (slide joints).</li>
+                <li><code>&lt;actuator&gt;</code> uses <strong>position</strong> control (vs. the base's motor/velocity control) for all arm and gripper joints.</li>
+                <li><code>&lt;contact&gt;</code> disables contact physics between each pair of directly-connected arm/gripper links.</li>
+            </ul>
+
+            <div class="exercise-end">✓ End of Exercise 2.2</div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec2-3" class="reveal">2.3 Mounting the Arm on the Base</h2>
+        <p class="reveal">Now combine both models into one: the <strong>Robot Crane</strong>. This is a manual-merge exercise — you'll build it yourself using the two files above as source material.</p>
+
+        <div class="exercise-card reveal">
+            <h3>Exercise 2.3 — Assemble the Robot Crane</h3>
+            <ol>
+                <li>Create <code>robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.</li>
+                <li>Copy the <strong>entire contents</strong> of <code>robot_base.mjcf</code> into <code>robot_crane.mjcf</code>. Change the <code>model</code> name to <code>robot_crane</code>.</li>
+                <li>Copy the contents inside <code>&lt;worldbody&gt;</code> from <code>robot_arm.mjcf</code> and paste it <strong>immediately under <code>link_chassis</code></strong>, inside <code>robot_crane.mjcf</code>'s <code>&lt;worldbody&gt;</code>.
+                    <div class="callout callout-note" style="margin-top:8px;"><strong>Note</strong> Preserve body hierarchy — the entire arm description must sit one level inside the base's <code>link_chassis</code>.</div>
+                </li>
+                <li>Update the <code>pos</code> of <code>link_base_plate</code> (the arm's root) so the arm sits on top of the chassis.
+                    <div class="callout callout-tip" style="margin-top:8px;"><strong>Hint</strong> New Z = (chassis height) + (base plate height). Leave X and Y at zero.</div>
+                </li>
+                <li>Merge the <code>&lt;default&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;default&gt;</code>.</li>
+                <li>Merge the <code>&lt;actuator&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;actuator&gt;</code>.</li>
+                <li>Merge the <code>&lt;contact&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;contact&gt;</code>.</li>
+                <li>Launch <code>robot_crane.mjcf</code> to check it's valid and error-free:</li>
+            </ol>
+
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./robot_crane.mjcf</div>
+            </div>
+
+            <p><strong>Expected Output:</strong></p>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/13-robot-crane-assembled-raw.png" alt="Robot crane assembled"></div>
+
+            <p style="margin-top:14px;"><strong>9.</strong> Update the camera view under <strong>Visualization</strong>:</p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+                    <tbody>
+                        <tr><td>Field of view</td><td>45</td></tr>
+                        <tr><td>Center</td><td><code>0 0 0.2</code></td></tr>
+                        <tr><td>Azimuth</td><td>-135</td></tr>
+                        <tr><td>Elevation</td><td>-15</td></tr>
+                        <tr><td>Extent</td><td>0.75</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>You can edit these directly in <code>robot_crane.mjcf</code> under <code>&lt;visual&gt;</code>/<code>&lt;statistic&gt;</code>, or use your own values.</p>
+
+            <p><strong>10.</strong> Re-launch to confirm the visualization change took effect:</p>
+            <p><strong>Expected Output:</strong></p>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/14-robot-crane-camera-adjusted.png" alt="Robot crane with adjusted camera view"></div>
+
+            <div class="exercise-end">✓ End of Exercise 2.3</div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec2-4" class="reveal">2.4 Adding the Robot to a Scene</h2>
+
+        <div class="exercise-card reveal">
+            <h3>Exercise 2.4 — Create the Scene</h3>
+            <ol>
+                <li>Create <code>scene_robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.</li>
+                <li>Paste:</li>
+            </ol>
+
+            <pre class="has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0"?&gt;
+
+&lt;mujoco model="scene_robot_crane"&gt;
+
+  &lt;asset&gt;
+    &lt;texture type="skybox" builtin="gradient"
+             rgb1="1 1 1" rgb2="0 0 0"
+             width="512" height="3072"/&gt;
+    &lt;texture type="2d" name="groundplane"
+             builtin="checker" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+             mark="edge" markrgb="0.8 0.8 0.8"
+             width="300" height="300"/&gt;
+    &lt;material name="groundplane" texture="groundplane"
+              texuniform="true" texrepeat="5 5" reflectance="0.2"/&gt;
+  &lt;/asset&gt;
+
+  &lt;worldbody&gt;
+    &lt;geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/&gt;
+    &lt;light pos="0 0 1.5" dir="0 0 -1" directional="true"/&gt;
+  &lt;/worldbody&gt;
+&lt;/mujoco&gt;</code></pre>
+
+            <ol start="3">
+                <li>Copy <strong>only</strong> the <code>&lt;visual&gt;</code> and <code>&lt;statistic&gt;</code> tag contents from <code>robot_crane.mjcf</code> into this scene file.</li>
+                <li>Add an <code>&lt;include&gt;</code> tag right under <code>&lt;mujoco&gt;</code> to pull in the <code>robot_crane.mjcf</code> model file, then save.</li>
+                <li>Launch it:</li>
+            </ol>
+
+            <div class="terminal">
+                <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+                <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_robot_crane.mjcf</div>
+            </div>
+
+            <div class="exercise-end">✓ End of Exercise 2.4</div>
+        </div>
+
+        <h3 id="sec2-4-debug" class="reveal">Debugging: Why Is the Robot Buried in the Ground?</h3>
+        <p class="reveal">The robot loads <em>partially buried</em> inside the ground-plane. Here's why:</p>
+
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/15-robot-buried-bug.png" alt="Robot buried in the ground-plane bug"></div>
+
+        <p class="reveal">Look at how <code>link_chassis</code> is defined:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;body name="link_chassis" pos="0 0 0" euler="0 0 0"&gt;
+    &lt;geom type="box" size="0.150 0.100 0.050" rgba="1 0 0 1"/&gt;
+    &lt;inertial pos="0 0 0" mass="3.000"
+              diaginertia="0.012500000000000 0.025000000000000 0.032500000000000"/&gt;
+    &lt;!-- rest of the model data --&gt;
+  &lt;/body&gt;</code></pre>
+
+        <div class="callout callout-danger reveal"><strong>Caution — Root Cause</strong> <code>link_chassis</code> has <strong>no joint defined</strong>, so it defaults to a <strong>fixed</strong> joint in MuJoCo. The ground-plane is also fixed, both at <code>pos="0 0 0"</code> — so they overlap.</div>
+
+        <p class="reveal"><strong>The fix:</strong> the base needs to <em>move</em>, so it can't be fixed. Give it a <strong>free</strong> joint (6 degrees of freedom):</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;body name="link_chassis" pos="0 0 0" euler="0 0 0"&gt;
+    &lt;geom type="box" size="0.150 0.100 0.050" rgba="1 0 0 1"/&gt;
+    &lt;freejoint name="joint_world_to_chassis"/&gt;
+    &lt;inertial pos="0 0 0" mass="3.000"
+              diaginertia="0.012500000000000 0.025000000000000 0.032500000000000"/&gt;
+    &lt;!-- rest of the model data --&gt;
+  &lt;/body&gt;</code></pre>
+
+        <p class="reveal">Add this <code>&lt;freejoint&gt;</code> line to <code>link_chassis</code> in <code>robot_crane.mjcf</code>, save, and relaunch:</p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_robot_crane.mjcf</div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec2-5" class="reveal">2.5 Testing the Robot Simulation</h2>
+
+        <div class="callout callout-danger reveal"><strong>Important</strong> Without <code>&lt;actuator&gt;</code> entries, a model can't be simulated — it will only be a static, non-movable object.</div>
+
+        <ol class="reveal">
+            <li>Launch (if not already running):</li>
+        </ol>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_robot_crane.mjcf</div>
+        </div>
+
+        <ol start="2" class="reveal">
+            <li>Expand the <strong>Joint Menu</strong> and <strong>Control Menu</strong> in the Right Menu Panel.</li>
+        </ol>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/16-joint-control-menu-expanded.png" alt="Joint and control menu expanded"></div>
+
+        <ol start="3" class="reveal">
+            <li>Use the sliders in the <strong>Control Menu</strong> to set arm positions and wheel speeds.</li>
+        </ol>
+
+        <p class="reveal"><strong>Expected Output:</strong> (sped up 4x — real-time will be slower)</p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/17-robot-teleop-demo.png" alt="Robot teleop demo via sliders"></div>
+
+        <p class="reveal">You now have a fully assembled, drivable mobile manipulator in MuJoCo.</p>
+
+        <hr>
+
+        <!-- ══════════════════ PART 3 ══════════════════ -->
+        <h1 class="reveal">Part 3 — Adding Sensors + Python Control</h1>
+        <p class="reveal">Every mobile-base robot needs three sensor types:</p>
+
+        <div class="table-wrap reveal">
+            <table>
+                <thead><tr><th>Sensor</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Proximity / range</strong></td><td>Detect distance from the robot to nearby objects</td></tr>
+                    <tr><td><strong>Odometry</strong></td><td>Track robot motion and trajectory</td></tr>
+                    <tr><td><strong>Inertial (IMU)</strong></td><td>Acceleration, gyration, magnetic heading, collision detection</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="sec3-1" class="reveal">3.1 Adding Sensors to the Robot Crane</h2>
+        <p class="reveal">We'll extend <code>robot_crane.mjcf</code> with 6 small sensor bodies: 4 range sensors, 1 odometry sensor, 1 IMU.</p>
+
+        <p class="reveal">Paste the following as children of <code>link_chassis</code> — right after the caster wheel definitions (<code>link_support_caster</code> / <code>link_wheel_caster</code>), and <strong>before</strong> the closing <code>&lt;/body&gt;</code> of <code>link_chassis</code>:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>     &lt;body name="link_sensor_range_front" pos="0.150 0.000 0.000" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="0.0 1.0 1.0 1"/&gt;
+        &lt;site name="sensor_range_front" pos="0.005 0 0" euler="0 90 0" type="sphere" size="0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000004000000 0.000000004000000 0.000000004000000"/&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_sensor_range_back" pos="-0.150 0.000 0.000" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="1.0 0.0 1.0 1"/&gt;
+        &lt;site name="sensor_range_back" pos="-0.005 0 0" euler="0 -90 0" type="sphere" size="0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000004000000 0.000000004000000 0.000000004000000"/&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_sensor_range_left" pos="0.050 0.100 0.000" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="0.0 1.0 0.0 1"/&gt;
+        &lt;site name="sensor_range_left" pos="0 0.005 0" euler="-90 0 0" type="sphere" size="0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000004000000 0.000000004000000 0.000000004000000"/&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_sensor_range_right" pos="0.050 -0.100 0.000" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="0.0 0.0 1.0 1"/&gt;
+        &lt;site name="sensor_range_right" pos="0 -0.005 0" euler="90 0 0" type="sphere" size="0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000004000000 0.000000004000000 0.000000004000000"/&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_sensor_odom" pos="0 0 -0.050" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;site name="sensor_odom" pos="0 0 0" type="box" size="0.005 0.005 0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000166666667 0.000000166666667 0.000000166666667"/&gt;
+      &lt;/body&gt;
+
+      &lt;body name="link_sensor_imu" pos="0.055 0 0.055" euler="0 0 0"&gt;
+        &lt;geom type="box" size="0.005 0.005 0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;site name="sensor_imu" pos="0 0 0" type="box" size="0.005 0.005 0.005" rgba="0.25 0.25 0.25 1"/&gt;
+        &lt;inertial pos="0 0 0" mass="0.010"
+                  diaginertia="0.000000166666667 0.000000166666667 0.000000166666667"/&gt;
+      &lt;/body&gt;</code></pre>
+
+        <p class="reveal">Each is a small <code>1cm × 1cm × 1cm</code> box <code>body</code> with a <code>site</code> — sites are the visual-only, sensor-mountable equivalent of geoms (geoms have both visual <em>and</em> collision properties; sites are visual-only reference points).</p>
+        <ul class="reveal">
+            <li><strong>4 small spheres</strong> → sites for the range sensors</li>
+            <li><strong>1 small box</strong> → site for the odometry sensor</li>
+            <li><strong>1 small box</strong> → site for the IMU</li>
+        </ul>
+
+        <p class="reveal">Now define the <strong>sensor types</strong> themselves. Paste this <strong>after</strong> the closing <code>&lt;/worldbody&gt;</code> tag and <strong>before</strong> the opening <code>&lt;actuator&gt;</code> tag:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code> &lt;sensor&gt;
+    &lt;rangefinder name="sensor_range_front" site="sensor_range_front" cutoff="10.0"/&gt;
+    &lt;rangefinder name="sensor_range_back" site="sensor_range_back" cutoff="10.0"/&gt;
+    &lt;rangefinder name="sensor_range_left" site="sensor_range_left" cutoff="10.0"/&gt;
+    &lt;rangefinder name="sensor_range_right" site="sensor_range_right" cutoff="10.0"/&gt;
+
+    &lt;framepos name="sensor_odom_position" objtype="site" objname="sensor_odom"/&gt;
+    &lt;framequat name="sensor_odom_orientation" objtype="site" objname="sensor_odom"/&gt;
+
+    &lt;accelerometer name="sensor_imu_acc" site="sensor_imu"/&gt;
+    &lt;gyro name="sensor_imu_gyr" site="sensor_imu"/&gt;
+    &lt;magnetometer name="sensor_imu_mag" site="sensor_imu"/&gt;
+  &lt;/sensor&gt;</code></pre>
+
+        <ul class="reveal">
+            <li><strong><code>rangefinder</code></strong> — distance sensing (4x, one per side).</li>
+            <li><strong><code>framepos</code></strong> / <strong><code>framequat</code></strong> — position and orientation (as a quaternion) in 3D space.</li>
+            <li><strong><code>accelerometer</code></strong> / <strong><code>gyro</code></strong> / <strong><code>magnetometer</code></strong> — the 3 IMU channels.</li>
+        </ul>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> All sensor types require a <code>site</code> to mount to — you cannot attach sensors without site definitions. Full sensor reference: <a href="https://mujoco.readthedocs.io/en/stable/XMLreference.html#sensor" target="_blank" rel="noopener">MuJoCo XML Reference — Sensors</a></div>
+
+        <p class="reveal">Launch and confirm:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_robot_crane.mjcf</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong> — 4 range sensors (one per side), 1 IMU (top of chassis, in front of the arm base), 1 odometry sensor (bottom-center, behind the caster wheel)</p>
+        <div class="img-row reveal">
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/19a-sensors-mounted-view-a.png" alt="Sensors mounted on the robot crane, view A"></div>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/19b-sensors-mounted-view-b.png" alt="Sensors mounted on the robot crane, view B"></div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec3-2" class="reveal">3.2 Sensing and Actuation with Python</h2>
+        <p class="reveal">MuJoCo ships a <strong>Python wrapper library</strong> with its own viewer, so you can drive simulation and read/write data programmatically.</p>
+
+        <p class="reveal">Create the script:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mjcf
+touch ./robot_crane_simulation.py</div>
+        </div>
+
+        <p class="reveal">Paste:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>#! /usr/bin/python3
+
+import os
+import time
+import mujoco
+import mujoco.viewer
+from threading import Thread
+
+
+class RobotCraneSimulation:
+
+    def __init__(self, model_path):
+        # class constructor
+
+        # get mjcf model path
+        self.model = mujoco.MjModel.from_xml_path(model_path)
+        # create variable to store simulation data
+        self.data = mujoco.MjData(self.model)
+
+        # create a passive viewer instance of mujoco
+        self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+
+        # boolean flag to hold simulation status
+        self.sim_active = False
+
+        # variables to hold sensor values
+        self.ranges = {"front": 0.000, "back": 0.000,
+                       "left": 0.000, "right": 0.000}
+        self.imu = {"accelerometer": {"x": 0.000, "y": 0.000, "z": 0.000},
+                    "gyroscope": {"x": 0.000, "y": 0.000, "z": 0.000},
+                    "magnetometer": {"x": 0.000, "y": 0.000, "z": 0.000}}
+        self.odom = {"position": {"x": 0.000, "y": 0.000, "z": 0.000},
+                     "quaternion": {"w": 0.000, "x": 0.000, "y": 0.000, "z": 0.000}}
+
+        # get actuator identification information
+        # motors
+        self.motor_left = self.model.actuator("wheel_left").id
+        self.motor_right = self.model.actuator("wheel_right").id
+        # arm controllers
+        self.arm_base = self.model.actuator("arm_base").id
+        self.arm_link1 = self.model.actuator("arm_link1").id
+        self.arm_link2 = self.model.actuator("arm_link2").id
+        self.arm_link3 = self.model.actuator("arm_link3").id
+        # gripper controllers
+        self.gripper_left = self.model.actuator("finger_left").id
+        self.gripper_right = self.model.actuator("finger_right").id
+
+        # variables to hold actuator values
+        self.motor = {"left": 0.000,  "right": 0.000}
+        self.arm = {"base": 0.000, "link1": 0.000, "link2": 0.000, "link3": 0.000}
+        self.gripper = {"left": 0.000, "right": 0.000}
+
+        return None
+
+    def __del__(self):
+        # class destructor
+
+        # delete the viewer
+        del self.viewer
+        # delete the simulation data
+        del self.data
+        # delete the model information
+        del self.model
+
+        return None
+
+    def start_simulation(self):
+        # trigger function to start the simulation
+        self.sim_active = True
+
+        # start the simulation thread function
+        self.sim_thread = Thread(target=self.run_simulation)
+        self.sim_thread.start()
+
+        # start the sensor data print thread function
+        self.sensor_data_thread = Thread(target=self.print_sensor_data)
+        self.sensor_data_thread.start()
+
+        return None
+
+    def run_simulation(self):
+        # thread function to execute the simulation away from main thread
+
+        while self.sim_active:
+            try:
+                mujoco.mj_step(self.model, self.data)
+                self.viewer.sync()
+                self.read_sensor_data()
+                self.write_actuator_data()
+            except:
+                self.sim_active = False
+
+        return None
+
+    def read_sensor_data(self):
+        # funtion that reads sensor data from the simulation
+
+        # get range sensor values
+        self.ranges["front"] = round(float(self.data.sensor("sensor_range_front").data[0]), 3)
+        self.ranges["back"] = round(float(self.data.sensor("sensor_range_back").data[0]), 3)
+        self.ranges["left"] = round(float(self.data.sensor("sensor_range_left").data[0]), 3)
+        self.ranges["right"] = round(float(self.data.sensor("sensor_range_right").data[0]), 3)
+
+        # get imu sensor values
+        self.imu["accelerometer"]["x"] = round(float(self.data.sensor("sensor_imu_acc").data[0]), 3)
+        self.imu["accelerometer"]["y"] = round(float(self.data.sensor("sensor_imu_acc").data[1]), 3)
+        self.imu["accelerometer"]["z"] = round(float(self.data.sensor("sensor_imu_acc").data[2]), 3)
+        self.imu["gyroscope"]["x"] = round(float(self.data.sensor("sensor_imu_gyr").data[0]), 3)
+        self.imu["gyroscope"]["y"] = round(float(self.data.sensor("sensor_imu_gyr").data[1]), 3)
+        self.imu["gyroscope"]["z"] = round(float(self.data.sensor("sensor_imu_gyr").data[2]), 3)
+        self.imu["magnetometer"]["x"] = round(float(self.data.sensor("sensor_imu_mag").data[0]), 3)
+        self.imu["magnetometer"]["y"] = round(float(self.data.sensor("sensor_imu_mag").data[1]), 3)
+        self.imu["magnetometer"]["z"] = round(float(self.data.sensor("sensor_imu_mag").data[2]), 3)
+
+        # get odom sensor values
+        self.odom["position"]["x"] = round(float(self.data.sensor("sensor_odom_position").data[0]), 3)
+        self.odom["position"]["y"] = round(float(self.data.sensor("sensor_odom_position").data[1]), 3)
+        self.odom["position"]["z"] = round(float(self.data.sensor("sensor_odom_position").data[2]), 3)
+        self.odom["quaternion"]["w"] = round(float(self.data.sensor("sensor_odom_orientation").data[0]), 3)
+        self.odom["quaternion"]["x"] = round(float(self.data.sensor("sensor_odom_orientation").data[1]), 3)
+        self.odom["quaternion"]["y"] = round(float(self.data.sensor("sensor_odom_orientation").data[2]), 3)
+        self.odom["quaternion"]["z"] = round(float(self.data.sensor("sensor_odom_orientation").data[3]), 3)
+
+        return None
+
+    def print_sensor_data(self):
+        # thread function to print sensor data away from main thread
+
+        while self.sim_active:
+            print("~~~~~")
+            print("Ranges:", self.ranges)
+            print("IMU:", self.imu)
+            print("Odom:", self.odom)
+            time.sleep(1.0)
+
+        return None
+
+    def write_actuator_data(self):
+        # function that writes actuator data to the simulation
+        # modify class variables for actuators directly
+
+        # set motor actuator values
+        self.data.ctrl[self.motor_left] = self.motor["left"]
+        self.data.ctrl[self.motor_right] = self.motor["right"]
+
+        # set arm actuator values
+        self.data.ctrl[self.arm_base] = self.arm["base"]
+        self.data.ctrl[self.arm_link1] = self.arm["link1"]
+        self.data.ctrl[self.arm_link2] = self.arm["link2"]
+        self.data.ctrl[self.arm_link3] = self.arm["link3"]
+
+        # set gripper actuator values
+        self.data.ctrl[self.gripper_left] = self.gripper["left"]
+        self.data.ctrl[self.gripper_right] = self.gripper["right"]
+
+        return None
+
+
+def main():
+    # main function
+
+    # get the current working directory
+    cwd = os.path.abspath(os.getcwd())
+    print("cwd:", cwd)
+
+    # get the mjcf model file name
+    model_file = "scene_robot_crane_objects.mjcf"
+    print("model_file:", model_file)
+    # get the mjcf model path
+    model_path = os.path.join(cwd, model_file)
+    print("model_path:", model_path)
+
+    # instantiate the class
+    sim = RobotCraneSimulation(model_path=model_path)
+
+    # wait for a few seconds for initialization
+    time.sleep(5.0)
+
+    # set test process values
+    sim.motor["left"] = 0.10
+    sim.motor["right"] = -0.10
+    sim.arm["base"] = 0.000
+    sim.arm["link1"] = 0.7854
+    sim.arm["link2"] = 0.7854
+    sim.arm["link3"] = 0.7854
+    sim.gripper["left"] = 0.010
+    sim.gripper["right"] = 0.010
+
+    # start the simulation
+    print("Running Simulation ...")
+    sim.start_simulation()
+
+    return None
+
+
+if __name__ == "__main__":
+    main()
+
+# End of Code</code></pre>
+
+        <p class="reveal">Make it executable and run it:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mjcf
+chmod +x ./robot_crane_simulation.py
+./robot_crane_simulation.py</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong></p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/20-python-sim-launch.png" alt="Python simulation launched"></div>
+
+        <p class="reveal">A few seconds later, the robot starts moving (animation below at 4x actual speed):</p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/21-python-sim-moving.png" alt="Python simulation moving"></div>
+
+        <p class="reveal">Terminal output will look like:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">output</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body"><span class="prompt">user:~$</span> cd ~/mjcf
+<span class="prompt">user:~/mjcf$</span> ./robot_crane_simulation.py
+cwd: /home/user/mjcf
+model_file: scene_robot_crane_objects.mjcf
+model_path: /home/user/mjcf/scene_robot_crane_objects.mjcf
+Running Simulation ...
+~~~~~
+Ranges: {'front': 0.0, 'back': 0.0, 'left': 0.0, 'right': 0.0}
+IMU: {'accelerometer': {'x': 3.389, 'y': 0.0, 'z': 3.608}, 'gyroscope': {'x': 0.0, 'y': 0.0, 'z': 0.0}, 'magnetometer': {'x': 0.0, 'y': -0.5, 'z': 0.0}}
+Odom: {'position': {'x': -0.15, 'y': 0.0, 'z': 0.025}, 'quaternion': {'w': 1.0, 'x': 0.0, 'y': 0.0, 'z': 0.0}}
+~~~~~
+Ranges: {'front': 10.0, 'back': 2.11, 'left': 2.321, 'right': 2.296}
+IMU: {'accelerometer': {'x': -0.013, 'y': 0.0, 'z': 9.81}, 'gyroscope': {'x': 0.0, 'y': -0.0, 'z': -0.007}, 'magnetometer': {'x': 0.031, 'y': -0.499, 'z': 0.0}}
+Odom: {'position': {'x': -0.15, 'y': -0.003, 'z': 0.025}, 'quaternion': {'w': 1.0, 'x': 0.0, 'y': 0.001, 'z': -0.031}}</div>
+        </div>
+
+        <hr>
+
+        <!-- ══════════════════ PART 4 ══════════════════ -->
+        <h1 class="reveal">Part 4 — ROS2 Integration + Obstacle Avoidance</h1>
+
+        <div class="callout callout-note reveal"><strong>Prerequisite</strong> This part assumes you already know <strong>ROS2 Basics</strong> (packages, nodes, topics, pub/sub, launch files). If you're not comfortable with these yet, flag it with your instructor before continuing — this section builds directly on top of that knowledge.</div>
+
+        <div class="callout callout-tip reveal"><strong>Starter code note</strong> The ROS2 packages below (<code>robot_crane_interfaces</code> and <code>robot_crane_mujoco</code>) are <strong>provided as starter code</strong> for this workshop rather than typed live, since scaffolding two ROS2 packages from scratch (message definitions, CMakeLists, package.xml, launch files) would eat most of the 2-hour session. Walk through what each piece does, then jump to <strong>4.3 — Exercise: Obstacle Avoidance</strong>, which is the hands-on coding portion.</div>
+
+        <h2 id="sec4-1" class="reveal">4.1 Package Walkthrough: Custom Interfaces</h2>
+        <p class="reveal"><strong>Package:</strong> <code>robot_crane_interfaces</code> — bridges MuJoCo sensor/actuator data into ROS2 as custom message types.</p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/src
+ros2 pkg create robot_crane_interfaces --build-type ament_cmake --dependencies rclcpp std_msgs geometry_msgs rosidl_default_generators</div>
+        </div>
+
+        <p class="reveal">Four custom message files live in its <code>msg/</code> directory:</p>
+
+        <p class="reveal"><strong><code>Ranges.msg</code></strong></p>
+        <pre class="reveal has-lang"><span class="pre-lang">text</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Range Sensor Message Definition for Robot Crane
+
+float64 front
+float64 back
+float64 left
+float64 right</code></pre>
+
+        <p class="reveal"><strong><code>PosQuat.msg</code></strong></p>
+        <pre class="reveal has-lang"><span class="pre-lang">text</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Odometry Sensor Message Definition for Robot Crane
+
+geometry_msgs/Point position
+geometry_msgs/Quaternion quaternion</code></pre>
+
+        <p class="reveal"><strong><code>AccGyrMag.msg</code></strong></p>
+        <pre class="reveal has-lang"><span class="pre-lang">text</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># IMU Sensor Message Definition for Robot Crane
+
+geometry_msgs/Vector3 accelerometer
+geometry_msgs/Vector3 gyroscope
+geometry_msgs/Vector3 magnetometer</code></pre>
+
+        <p class="reveal"><strong><code>Actuation.msg</code></strong></p>
+        <pre class="reveal has-lang"><span class="pre-lang">text</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code># Actuator Controls Message Definition for Robot Crane
+
+float64 motor_left
+float64 motor_right
+
+float64 arm_base
+float64 arm_link1
+float64 arm_link2
+float64 arm_link3
+
+float64 gripper_left
+float64 gripper_right</code></pre>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> File names are case-sensitive.</div>
+
+        <p class="reveal"><code>CMakeLists.txt</code> registers the messages for code generation:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">cmake</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>cmake_minimum_required(VERSION 3.8)
+project(robot_crane_interfaces)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# generate custom interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Ranges.msg"
+  "msg/AccGyrMag.msg"
+  "msg/PosQuat.msg"
+  "msg/Actuation.msg"
+  DEPENDENCIES std_msgs geometry_msgs
+)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  set(ament_cmake_copyright_FOUND TRUE)
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_package()</code></pre>
+
+        <p class="reveal">Build it:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws && colcon build && source install/setup.bash</div>
+        </div>
+
+        <hr>
+
+        <h2 id="sec4-2" class="reveal">4.2 Package Walkthrough: MuJoCo–ROS2 Bridge Node</h2>
+        <p class="reveal"><strong>Package:</strong> <code>robot_crane_mujoco</code> — the main package that runs the MuJoCo simulation as a ROS2 node.</p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/src
+ros2 pkg create robot_crane_mujoco --build-type ament_python --dependencies rclpy std_msgs robot_crane_interfaces</div>
+        </div>
+
+        <p class="reveal"><code>robot_crane_mujoco/simulation.py</code> transforms our earlier <code>robot_crane_simulation.py</code> script into a ROS2 node:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>#! /usr/bin/python3
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
+from robot_crane_interfaces.msg import Ranges
+from robot_crane_interfaces.msg import PosQuat
+from robot_crane_interfaces.msg import AccGyrMag
+from robot_crane_interfaces.msg import Actuation
+
+import mujoco
+import mujoco.viewer
+from threading import Thread
+
+
+class RobotCraneSimulation(Node):
+
+    def __init__(self):
+        # class constructor
+        super().__init__("robot_crane_simulation")
+        self.get_logger().info("Initialized Node: robot_crane_simulation")
+
+        # access model file path parameter
+        self.declare_parameter("model_path", "default_value")
+        self.model_path = self.get_parameter("model_path").value
+        self.get_logger().info("Model Path: " + self.model_path)
+
+        # callback group to hold publishers and subscribers
+        self.callback_group = ReentrantCallbackGroup()
+
+        # a common qos profile for both publisher and subscriber
+        self.qos_default = QoSProfile(depth=10,
+                                      reliability=ReliabilityPolicy.BEST_EFFORT,
+                                      durability=DurabilityPolicy.VOLATILE)
+
+        # ranges publisher
+        self.ranges_pub = self.create_publisher(
+            msg_type=Ranges, topic="/ranges",
+            qos_profile=self.qos_default,
+            callback_group=self.callback_group)
+        self.get_logger().info("Initialized Publisher: /ranges")
+
+        # odometry publisher
+        self.odom_pub = self.create_publisher(
+            msg_type=PosQuat, topic="/odometry",
+            qos_profile=self.qos_default,
+            callback_group=self.callback_group)
+        self.get_logger().info("Initialized Publisher: /odometry")
+
+        # imu publisher
+        self.imu_pub = self.create_publisher(
+            msg_type=AccGyrMag, topic="/accgyrmag",
+            qos_profile=self.qos_default,
+            callback_group=self.callback_group)
+        self.get_logger().info("Initialized Publisher: /accgyrmag")
+
+        # actuator subscriber
+        self.actuator_sub = self.create_subscription(
+            msg_type=Actuation, topic="/actuators",
+            callback=self.actuator_callback,
+            qos_profile=self.qos_default,
+            callback_group=self.callback_group)
+        self.get_logger().info("Initialized Subscriber: /actuators")
+
+        # get mjcf model path
+        self.model = mujoco.MjModel.from_xml_path(self.model_path)
+        # create variable to store simulation data
+        self.data = mujoco.MjData(self.model)
+
+        # create a passive viewer instance of mujoco
+        self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+
+        # boolean flag to hold simulation status
+        self.sim_active = False
+
+        # variables to hold sensor values
+        self.ranges = Ranges()
+        self.pos_quat = PosQuat()
+        self.acc_gyr_mag = AccGyrMag()
+
+        # get actuator identification information
+        # motors
+        self.motor_left = self.model.actuator("wheel_left").id
+        self.motor_right = self.model.actuator("wheel_right").id
+        # arm controllers
+        self.arm_base = self.model.actuator("arm_base").id
+        self.arm_link1 = self.model.actuator("arm_link1").id
+        self.arm_link2 = self.model.actuator("arm_link2").id
+        self.arm_link3 = self.model.actuator("arm_link3").id
+        # gripper controllers
+        self.gripper_left = self.model.actuator("finger_left").id
+        self.gripper_right = self.model.actuator("finger_right").id
+
+        # variables to hold actuator values
+        self.actuation = Actuation()
+
+        # start the simulation process
+        self.get_logger().info("Robot Crane MuJoCo Simulation Started!")
+        self.start_simulation()
+
+        return None
+
+    def __del__(self):
+        # class destructor
+        return None
+
+    def start_simulation(self):
+        # trigger function to start the simulation
+        self.sim_active = True
+
+        # start the simulation thread function
+        self.sim_thread = Thread(target=self.run_simulation)
+        self.sim_thread.start()
+
+        return None
+
+    def run_simulation(self):
+        # thread function to execute the simulation away from main thread
+
+        while self.sim_active:
+            try:
+                mujoco.mj_step(self.model, self.data)
+                self.viewer.sync()
+                self.publish_sensor_data()
+                self.write_actuator_data()
+            except:
+                self.sim_active = False
+
+        return None
+
+    def publish_sensor_data(self):
+        # funtion that reads sensor data from the simulation
+
+        # get range sensor values
+        self.ranges.front = round(float(self.data.sensor("sensor_range_front").data[0]), 3)
+        self.ranges.back = round(float(self.data.sensor("sensor_range_back").data[0]), 3)
+        self.ranges.left = round(float(self.data.sensor("sensor_range_left").data[0]), 3)
+        self.ranges.right = round(float(self.data.sensor("sensor_range_right").data[0]), 3)
+        self.ranges_pub.publish(self.ranges)
+
+        # get odom sensor values
+        self.pos_quat.position.x = round(float(self.data.sensor("sensor_odom_position").data[0]), 3)
+        self.pos_quat.position.y = round(float(self.data.sensor("sensor_odom_position").data[1]), 3)
+        self.pos_quat.position.z = round(float(self.data.sensor("sensor_odom_position").data[2]), 3)
+        self.pos_quat.quaternion.w = round(float(self.data.sensor("sensor_odom_orientation").data[0]), 3)
+        self.pos_quat.quaternion.x = round(float(self.data.sensor("sensor_odom_orientation").data[1]), 3)
+        self.pos_quat.quaternion.y = round(float(self.data.sensor("sensor_odom_orientation").data[2]), 3)
+        self.pos_quat.quaternion.z = round(float(self.data.sensor("sensor_odom_orientation").data[3]), 3)
+        self.odom_pub.publish(self.pos_quat)
+
+        # get imu sensor values
+        self.acc_gyr_mag.accelerometer.x = round(float(self.data.sensor("sensor_imu_acc").data[0]), 3)
+        self.acc_gyr_mag.accelerometer.y = round(float(self.data.sensor("sensor_imu_acc").data[1]), 3)
+        self.acc_gyr_mag.accelerometer.z = round(float(self.data.sensor("sensor_imu_acc").data[2]), 3)
+        self.acc_gyr_mag.gyroscope.x = round(float(self.data.sensor("sensor_imu_gyr").data[0]), 3)
+        self.acc_gyr_mag.gyroscope.y = round(float(self.data.sensor("sensor_imu_gyr").data[1]), 3)
+        self.acc_gyr_mag.gyroscope.z = round(float(self.data.sensor("sensor_imu_gyr").data[2]), 3)
+        self.acc_gyr_mag.magnetometer.x = round(float(self.data.sensor("sensor_imu_mag").data[0]), 3)
+        self.acc_gyr_mag.magnetometer.y = round(float(self.data.sensor("sensor_imu_mag").data[1]), 3)
+        self.acc_gyr_mag.magnetometer.z = round(float(self.data.sensor("sensor_imu_mag").data[2]), 3)
+        self.imu_pub.publish(self.acc_gyr_mag)
+
+        return None
+
+    def write_actuator_data(self):
+        # function that writes actuator data to the simulation
+        # modify class variables for actuators directly
+
+        # set motor actuator values
+        self.data.ctrl[self.motor_left] = self.actuation.motor_left
+        self.data.ctrl[self.motor_right] = self.actuation.motor_right
+
+        # set arm actuator values
+        self.data.ctrl[self.arm_base] = self.actuation.arm_base
+        self.data.ctrl[self.arm_link1] = self.actuation.arm_link1
+        self.data.ctrl[self.arm_link2] = self.actuation.arm_link2
+        self.data.ctrl[self.arm_link3] = self.actuation.arm_link3
+
+        # set gripper actuator values
+        self.data.ctrl[self.gripper_left] = self.actuation.gripper_left
+        self.data.ctrl[self.gripper_right] = self.actuation.gripper_right
+
+        return None
+
+    def actuator_callback(self, actuation_msg):
+        # callback function to get actuation data
+
+        self.actuation = actuation_msg
+
+        return None
+
+
+def main(args=None):
+
+    # initialize rclpy
+    rclpy.init(args=args)
+
+    try:
+        # create an executor
+        executor = MultiThreadedExecutor(num_threads=8)
+        # instantiate the class as ros2 node
+        sim_node = RobotCraneSimulation()
+        # add the node to the executor
+        executor.add_node(sim_node)
+        try:
+            executor.spin()
+        except:
+            pass
+        finally:
+            executor.shutdown()
+            sim_node.get_logger().info("Robot Crane MuJoCo Simulation Terminated!")
+            sim_node.destroy_node()
+    except:
+        pass
+    finally:
+        rclpy.shutdown()
+
+    return None
+
+
+if __name__ == "__main__":
+    main()
+
+# End of Code</code></pre>
+
+        <p class="reveal"><strong>Key differences from the plain-Python version:</strong></p>
+        <ul class="reveal">
+            <li>The model path is read as a <strong>ROS2 parameter</strong> (<code>model_path</code>), since after building, the file lives under <code>install/</code>, not <code>src/</code>.</li>
+            <li><strong>Publishers</strong> push all sensor data to ROS2 topics (<code>/ranges</code>, <code>/odometry</code>, <code>/accgyrmag</code>); a <strong>subscriber</strong> on <code>/actuators</code> drives the robot.</li>
+            <li>The MuJoCo simulation runs in its <strong>own thread</strong>, since it can't live inside a ROS2 callback.</li>
+            <li><code>publish_sensor_data()</code> replaces <code>read_sensor_data()</code> — sensor values are piped straight to topics instead of being stored.</li>
+        </ul>
+
+        <p class="reveal"><strong>Supporting files</strong> (all pre-provided in the starter package):</p>
+        <ul class="reveal">
+            <li><code>mjcf/robot_crane.mjcf</code> and <code>mjcf/scene_robot_crane.mjcf</code> — copied in from Part 2/3.</li>
+            <li><code>launch/simulation.launch.py</code> — declares the <code>model_path</code> launch argument and starts the <code>simulation</code> node.</li>
+            <li><code>setup.py</code> — registers <code>simulation</code> as a console-script entry point, and installs the <code>launch/</code> and <code>mjcf/</code> folders as package data.</li>
+        </ul>
+
+        <p class="reveal">Build and launch:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws && colcon build && source install/setup.bash
+
+ros2 launch robot_crane_mujoco simulation.launch.py</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong></p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/22-ros2-launch-mujoco-window.png" alt="ROS2 launch of the MuJoCo simulation window"></div>
+
+        <p class="reveal">Check the topics:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">ros2 topic list</div>
+        </div>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">output</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body"><span class="prompt">user:~$</span> ros2 topic list
+/accgyrmag
+/actuators
+/odometry
+/parameter_events
+/ranges
+/rosout</div>
+        </div>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">ros2 topic echo /ranges --once</div>
+        </div>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">output</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body"><span class="prompt">user:~$</span> ros2 topic echo /ranges --once
+front: 2.399
+back: 2.098
+left: 2.392
+right: 2.213
+---</div>
+        </div>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">ros2 topic echo /odometry --once</div>
+        </div>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">output</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body"><span class="prompt">user:~$</span> ros2 topic echo /odometry --once
+position:
+  x: -0.15
+  y: 0.0
+  z: 0.025
+quaternion:
+  x: 0.0
+  y: 0.0
+  z: -0.0
+  w: 1.0
+---</div>
+        </div>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">ros2 topic echo /accgyrmag --once</div>
+        </div>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">output</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body"><span class="prompt">user:~$</span> ros2 topic echo /accgyrmag --once
+accelerometer:
+  x: -0.009
+  y: 0.0
+  z: 9.81
+gyroscope:
+  x: -0.0
+  y: -0.0
+  z: 0.0
+magnetometer:
+  x: 0.0
+  y: -0.5
+  z: 0.0
+---</div>
+        </div>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> Your values will differ — this is live sensor data from your own simulation instance.</div>
+
+        <p class="reveal">We also provide a scripted demo node (<code>simple_ros2_example.py</code>) that publishes to <code>/actuators</code> on a timer to run the robot through a fixed sequence — move forward, move back, spin left, spin right, move the arm, open/close the gripper, then print range readings. It's in the starter repo (<code>launch/simple_ros2_example.launch.py</code>) if you want to see a working publisher/subscriber pair before writing your own logic below.</p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal (2nd, alongside simulation.launch.py)</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws && colcon build && source install/setup.bash
+
+ros2 launch robot_crane_mujoco simple_ros2_example.launch.py</div>
+        </div>
+
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/23-simple-ros2-example-demo.png" alt="Simple ROS2 example demo"></div>
+
+        <hr>
+
+        <h2 id="sec4-3" class="reveal">4.3 Hands-On Exercise: Obstacle Avoidance</h2>
+        <p class="reveal">Now it's your turn to write the control logic. You'll create a new scene with walls and a ROS2 node that steers the robot away from them using the range sensors.</p>
+
+        <p class="reveal"><strong>Step 1.</strong> Create <code>scene_robot_crane_exercise.mjcf</code> inside <code>robot_crane_mujoco/mjcf/</code>:</p>
+
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0" ?&gt;
+
+&lt;mujoco model="scene_robot_crane_exercise"&gt;
+  &lt;include file="./robot_crane.mjcf"/&gt;
+
+  &lt;statistic center="0 0 0.1" extent="0.8"/&gt;
+
+  &lt;visual&gt;
+    &lt;headlight diffuse="0.75 0.75 0.75" ambient="0.50 0.50 0.50" specular="0.25 0.25 0.25"/&gt;
+    &lt;rgba haze="0.20 0.40 0.60 1.00"/&gt;
+    &lt;global azimuth="-135" elevation="-45"/&gt;
+  &lt;/visual&gt;
+
+  &lt;asset&gt;
+    &lt;texture type="skybox" builtin="gradient" rgb1="1.0 1.0 1.0" rgb2="0.0 0.0 0.0" width="512" height="3072"/&gt;
+    &lt;texture name="groundplane" type="2d" builtin="checker" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+         mark="edge" markrgb="0.8 0.8 0.8" width="300" height="300"/&gt;
+    &lt;material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/&gt;
+  &lt;/asset&gt;
+
+  &lt;worldbody&gt;
+
+    &lt;light name="light_0" diffuse="0.7 0.7 0.7" pos="0 0 5" dir="0 0 -1"/&gt;
+    &lt;light name="light_1" diffuse="0.7 0.7 0.7" pos="2.5 2.5 5" dir="0 0 -1"/&gt;
+    &lt;light name="light_2" diffuse="0.7 0.7 0.7" pos="-2.5 2.5 5" dir="0 0 -1"/&gt;
+    &lt;light name="light_3" diffuse="0.7 0.7 0.7" pos="-2.5 -2.5 5" dir="0 0 -1"/&gt;
+    &lt;light name="light_4" diffuse="0.7 0.7 0.7" pos="2.5 -2.5 5" dir="0 0 -1"/&gt;
+
+    &lt;geom name="groundplane" type="plane" size="0 0 0.01" material="groundplane"/&gt;
+
+    &lt;body name="scene_wall1" pos="2.5 0 0.100" euler="0 0 0"&gt;
+      &lt;geom type="box" size="0.025 2.500 0.100" rgba="0.25 0 0 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="1.000"
+            diaginertia="2.086666666666666 0.003541666666667 2.083541666666667"/&gt;
+    &lt;/body&gt;
+
+    &lt;body name="scene_wall2" pos="-2.5 0 0.100" euler="0 0 0"&gt;
+      &lt;geom type="box" size="0.025 2.500 0.100" rgba="0.25 0 0 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="1.000"
+            diaginertia="2.086666666666666 0.003541666666667 2.083541666666667"/&gt;
+    &lt;/body&gt;
+
+    &lt;body name="scene_wall3" pos="0 2.5 0.100" euler="0 0 0"&gt;
+      &lt;geom type="box" size="2.500 0.025 0.100" rgba="0 0.25 0 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="1.000"
+            diaginertia="0.003541666666667 2.086666666666666 2.083541666666667"/&gt;
+    &lt;/body&gt;
+
+    &lt;body name="scene_wall4" pos="0 -2.5 0.100" euler="0 0 0"&gt;
+      &lt;geom type="box" size="2.500 0.025 0.100" rgba="0 0.25 0 1"/&gt;
+      &lt;inertial pos="0 0 0" mass="1.000"
+            diaginertia="0.003541666666667 2.086666666666666 2.083541666666667"/&gt;
+    &lt;/body&gt;
+
+  &lt;/worldbody&gt;
+
+&lt;/mujoco&gt;</code></pre>
+
+        <p class="reveal"><strong>Step 2.</strong> Create <code>exercise.py</code> inside <code>robot_crane_mujoco/robot_crane_mujoco/</code>. Use <code>simple_ros2_example.py</code> as a structural reference (publisher for <code>/actuators</code>, subscriber for <code>/ranges</code>, optionally subscribe to <code>/odometry</code> / <code>/accgyrmag</code> too), and implement the logic below in a ROS2 timer callback.</p>
+
+        <p class="reveal"><strong>Thresholds:</strong></p>
+        <ul class="reveal">
+            <li>Front obstacle limit: <strong>0.50 m</strong></li>
+            <li>Side (left/right) obstacle limit: <strong>0.25 m</strong></li>
+        </ul>
+
+        <p class="reveal"><strong>Control logic:</strong></p>
+        <pre class="reveal has-lang"><span class="pre-lang">text</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>IF (front > front_limit) AND (left > side_limit) AND (right > side_limit):
+    → Move forward straight
+
+ELSE:
+    IF front < front_limit:
+        IF left > right:
+            → Turn left
+        ELSE:
+            → Turn right
+    IF left < side_limit:
+        → Turn right
+    IF right < side_limit:
+        → Turn left</code></pre>
+
+        <p class="reveal"><strong>Step 3.</strong> Create <code>exercise.launch.py</code>, launching the MuJoCo simulation with <code>scene_robot_crane_exercise.mjcf</code> as the model path, alongside your <code>exercise.py</code> node.</p>
+
+        <p class="reveal"><strong>Step 4.</strong> Register <code>exercise</code> as an entry point in <code>setup.py</code>, under <code>console_scripts</code>.</p>
+
+        <p class="reveal"><strong>Step 5.</strong> Build and launch:</p>
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws && colcon build && source install/setup.bash
+
+ros2 launch robot_crane_mujoco exercise.launch.py</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong> the robot should approach a wall, detect it via the front/side range sensors, and steer away — repeating as it explores the walled arena. (Animation at 4x actual speed.)</p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/24-obstacle-avoidance-demo.png" alt="Obstacle avoidance demo"></div>
+
+        <div class="exercise-end reveal">✓ End of Part 4</div>
+
+        <hr>
+
+        <!-- ══════════════════ PART 5 ══════════════════ -->
+        <h1 id="sec5" class="reveal">Part 5 — Take-Home Assignment: Humanoid or Quadruped Challenge</h1>
+        <p class="reveal">Now that you've built a full MuJoCo–ROS2 pipeline for the Robot Crane, apply the same pattern to a more complex robot — <strong>on your own time</strong>.</p>
+
+        <p class="reveal">Choose <strong>one</strong>:</p>
+        <ul class="reveal">
+            <li><strong>Unitree G1 Humanoid</strong></li>
+            <li><strong>Unitree Go2 Quadruped</strong></li>
+        </ul>
+
+        <p class="reveal">Feeling ambitious? Design <strong>your own robot</strong> in MuJoCo and integrate it with ROS2 instead. If you do, share your design and a short demo animation on the workshop forum — we'd love to see it!</p>
+
+        <h3 class="reveal">Option A: Unitree G1 Humanoid</h3>
+        <p class="reveal">MJCF files at: <code>~/ros2_ws/mujoco_course_files/unitree_g1/mjcf</code><br>
+        Files to use: <code>g1_23dof_rev_1_0_tcri.mjcf</code> and <code>scene_g1_tcri.mjcf</code></p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mujoco_course_files/unitree_g1/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_g1_tcri.mjcf</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong></p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/25-unitree-g1-humanoid-launch.png" alt="Unitree G1 Humanoid launched"></div>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> This robot has <strong>no sensors implemented</strong> — you'll need to add them yourself, following the pattern from Part 3.</div>
+
+        <h3 class="reveal">Option B: Unitree Go2 Quadruped</h3>
+        <p class="reveal">MJCF files at: <code>~/ros2_ws/mujoco_course_files/unitree_go2/mjcf</code><br>
+        Files to use: <code>go2_tcri.mjcf</code> and <code>scene_go2_tcri.mjcf</code></p>
+
+        <div class="terminal reveal">
+            <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">cd ~/ros2_ws/mujoco_course_files/unitree_go2/mjcf
+~/ros2_ws/mujoco/bin/simulate ./scene_go2_tcri.mjcf</div>
+        </div>
+
+        <p class="reveal"><strong>Expected Output:</strong></p>
+        <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/26-unitree-go2-quadruped-launch.png" alt="Unitree Go2 Quadruped launched"></div>
+
+        <div class="callout callout-note reveal"><strong>Note</strong> This robot also has <strong>no sensors implemented</strong> — add them yourself, following the pattern from Part 3.</div>
+
+        <h3 class="reveal">Common Tasks (whichever robot you choose)</h3>
+        <ol class="reveal">
+            <li>Create a ROS2 package for your simulation scripts — name it <code>unitree_g1_mujoco</code> or <code>unitree_go2_mujoco</code>.</li>
+            <li>Create a custom interfaces package to bridge sensor/actuator data as ROS2 topics — <code>unitree_g1_interfaces</code> or <code>unitree_go2_interfaces</code>.</li>
+            <li>Copy the robot's mesh + MJCF files directory into your main package's <code>mjcf/</code> folder (from <code>~/ros2_ws/mujoco_course_files/unitree_g1</code> or <code>unitree_go2</code>).</li>
+            <li>Create a <code>simulation.py</code> executable that launches the MuJoCo simulation and bridges sensor/actuator data over ROS2 topics.</li>
+            <li>Create the corresponding launch file, and register the entry point in <code>setup.py</code>.</li>
+            <li>Create an <code>exercise.py</code> script that makes the robot perform a task of your choice, with its own launch file and <code>setup.py</code> entry point.</li>
+        </ol>
+
+        <p class="reveal"><strong>Task ideas:</strong></p>
+        <div class="table-wrap reveal">
+            <table>
+                <thead><tr><th>Robot</th><th>Ideas</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>G1 Humanoid</strong></td><td>Walk · Wave hello · Push-ups / squats / crunches · A dance move (if you have time!)</td></tr>
+                    <tr><td><strong>Go2 Quadruped</strong></td><td>Stand up / sit down · Walk or run · Two-leg walk · A dance move (if you have time!)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="reveal">Share what you built — a video or animation on the workshop forum — we'd love to see what you taught these robots to do!</p>
+
+        <hr>
+
+        <!-- ══════════════════ CONGRATS ══════════════════ -->
+        <h1 id="congrats" class="reveal">Congratulations!</h1>
+
+        <div class="completion-banner reveal">
+            <h2>Workshop Complete</h2>
+            <p>You've built a complete mobile manipulator pipeline: designed a differential-drive base and 4-DOF arm in MJCF, assembled and debugged the combined model, instrumented it with range/odometry/IMU sensors, driven it with Python, bridged it into ROS2, and implemented live obstacle-avoidance control. The humanoid/quadruped challenge is yours to explore at home — happy building!</p>
+            <div class="completion-badge">Status: COMPLETE</div>
+        </div>
+
+    </div><!-- /content -->
+</div><!-- /main -->
+
+<button id="to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+
+<script>
+    /* ── Copy for pre blocks ──────────────────────────── */
+    function copyCode(btn) {
+        const pre = btn.parentElement;
+        const code = pre.querySelector('code');
+        navigator.clipboard.writeText(code.innerText).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+        });
+    }
+
+    /* ── Copy for terminal blocks ─────────────────────── */
+    function copyTerminal(btn) {
+        const body = btn.closest('.terminal').querySelector('.terminal-body');
+        navigator.clipboard.writeText(body.innerText).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+        });
+    }
+
+    /* ── Reveal-on-scroll ──────────────────────────────── */
+    const revealObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('in-view');
+                revealObserver.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    /* ── Active sidebar link on scroll ───────────────── */
+    const sections = document.querySelectorAll('h1[id], h2[id]');
+    const navLinks = document.querySelectorAll('#sidebar .nav-item');
+
+    const sidebarEl = document.querySelector('.sidebar-nav');
+    const navObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                navLinks.forEach(l => l.classList.remove('active'));
+                const active = document.querySelector(`#sidebar a[href="#${entry.target.id}"]`);
+                if (active) {
+                    active.classList.add('active');
+                    /* keep the sidebar scrolled so the active topic stays in view
+                       as the reader scrolls through the main content */
+                    const navRect = active.getBoundingClientRect();
+                    const barRect = sidebarEl.getBoundingClientRect();
+                    if (navRect.top < barRect.top + 60 || navRect.bottom > barRect.bottom - 40) {
+                        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                }
+            }
+        });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sections.forEach(s => navObserver.observe(s));
+
+    /* ── Reading progress + to-top button ─────────────── */
+    const progressFill = document.getElementById('read-progress-fill');
+    const toTopBtn = document.getElementById('to-top');
+    window.addEventListener('scroll', () => {
+        const scrollTop = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+        progressFill.style.width = pct + '%';
+        toTopBtn.classList.toggle('show', scrollTop > 500);
+    });
+
+    /* close mobile sidebar on nav click */
+    navLinks.forEach(link => link.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('open');
+    }));
+</script>
+
+</body>
+</html>
