@@ -1143,13 +1143,8 @@ code .</code></pre>
 
         <p class="reveal"><strong>The fix:</strong> the base needs to <em>move</em>, so it can't be fixed. Give it a <strong>free</strong> joint (6 degrees of freedom):</p>
 
-        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;body name="link_chassis" pos="0 0 0" euler="0 0 0"&gt;
-    &lt;geom type="box" size="0.150 0.100 0.050" rgba="1 0 0 1"/&gt;
-    &lt;freejoint name="joint_world_to_chassis"/&gt;
-    &lt;inertial pos="0 0 0" mass="3.000"
-              diaginertia="0.012500000000000 0.025000000000000 0.032500000000000"/&gt;
-    &lt;!-- rest of the model data --&gt;
-  &lt;/body&gt;</code></pre>
+        <pre class="reveal has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>    &lt;freejoint name="joint_world_to_chassis"/&gt;
+    &lt;!-- rest of the model data --&gt;</code></pre>
 
         <p class="reveal">Add this <code>&lt;freejoint&gt;</code> line to <code>link_chassis</code> in <code>robot_crane.mjcf</code>, save, and relaunch:</p>
 
