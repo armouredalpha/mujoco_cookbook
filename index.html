@@ -353,7 +353,9 @@
 
     /* ── Images ───────────────────────────────────────── */
     .img-frame {
-        margin: 1rem 0 1.4rem;
+        display: table;
+        margin: 1rem auto 1.4rem;
+        max-width: 100%;
         border-radius: 10px;
         overflow: hidden;
         border: 1px solid var(--border);
@@ -361,9 +363,9 @@
         transition: transform .25s ease, box-shadow .25s ease;
     }
     .img-frame:hover { transform: scale(1.01); box-shadow: 0 10px 30px rgba(20,60,35,0.14); }
-    .img-frame img { display: block; width: 100%; height: auto; }
+    .img-frame img { display: block; width: auto; max-width: 100%; height: auto; }
 
-    .img-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 1rem 0 1.4rem; }
+    .img-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 1rem 0 1.4rem; justify-items: center; }
     .img-row .img-frame { margin: 0; }
     @media (max-width: 700px) { .img-row { grid-template-columns: 1fr; } }
 
@@ -647,15 +649,19 @@
             <p><strong>Step 1.</strong> Create the file:</p>
             <div class="terminal">
                 <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
-                <div class="terminal-body">cd ~/ros2_ws/mjcf
-touch robot_base.mjcf</div>
+                <div class="terminal-body">mkdir ~/ros2_ws/mjcf
+cd ~/ros2_ws/mjcf/
+touch robot_base.mjcf
+code .</div>
             </div>
+            <p>After running the above commands, you will see the file open in VS Code, as shown below:</p>
+            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/mujoco_mjcf.png" alt="Robot base fixtures — axles and caster support, view B"></div>
 
-            <p><strong>Step 2.</strong> Open <code>robot_base.mjcf</code> in your IDE and paste:</p>
+            <p><strong>Step 2.</strong> Open <code>robot_base.mjcf</code> in your IDE and paste the following code:</p>
 
             <pre class="has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0" ?&gt;
 
-&lt;mujoco model="robot_base"&gt;
+&lt;mujoco model="robot_base"&gt; &lt;!-- Change Model name to robot_crane --&gt;
 
   &lt;visual&gt;
     &lt;headlight diffuse="0.75 0.75 0.75" ambient="0.50 0.50 0.50" specular="0.25 0.25 0.25"/&gt;
@@ -668,15 +674,24 @@ touch robot_base.mjcf</div>
   &lt;default&gt;
     &lt;joint limited="false" armature="0.01"/&gt;
     &lt;equality solref="0.0002 1" solimp="0.99 0.99 0.0001"/&gt;
+    &lt;!-- Paste default code content from robot_arm here --&gt;
+
+    &lt;!-- Paste above --&gt;
   &lt;/default&gt;
 
   &lt;worldbody&gt;
 
     &lt;body name="link_chassis" pos="0 0 0" euler="0 0 0"&gt;
     &lt;geom type="box" size="0.150 0.100 0.050" rgba="1 0 0 1"/&gt;
+    &lt;!-- Add Free joint tag here --&gt;
+
+    &lt;!-- Free joint tag above --&gt;
     &lt;inertial pos="0 0 0" mass="3.000"
               diaginertia="0.012500000000000 0.025000000000000 0.032500000000000"/&gt;
 
+    &lt;!-- Paste content of robot_arm here in this space --&gt;
+
+    &lt;!-- Paste content of robot arm in above space --&gt;
       &lt;body name="link_axle_left" pos="-0.100 0.11250 -0.02500" euler="90 0 0"&gt;
       &lt;geom type="cylinder" size="0.010 0.01250" rgba="0.25 0.25 0.25 1"/&gt;
       &lt;inertial pos="0 0 0" mass="0.250"
@@ -719,11 +734,17 @@ touch robot_base.mjcf</div>
   &lt;actuator&gt;
     &lt;motor name="wheel_left" ctrllimited="true" ctrlrange="-2.5 2.5" gear="1" joint="joint_axle_left_to_wheel_left"/&gt;
     &lt;motor name="wheel_right" ctrllimited="true" ctrlrange="-2.5 2.5" gear="1" joint="joint_axle_right_to_wheel_right"/&gt;
+    &lt;!-- Paste below actuator content from robot_arm --&gt;
+
+    &lt;!-- Paste above --&gt;
   &lt;/actuator&gt;
 
   &lt;contact&gt;
     &lt;exclude body1="link_axle_left" body2="link_wheel_left"/&gt;
     &lt;exclude body1="link_axle_right" body2="link_wheel_right"/&gt;
+    &lt;!-- Paste below contact content from robot_arm --&gt;
+
+    &lt;!-- Paste above --&gt;
   &lt;/contact&gt;
 
 &lt;/mujoco&gt;</code></pre>
@@ -806,6 +827,7 @@ touch robot_arm.mjcf</div>
   &lt;/default&gt;
 
   &lt;worldbody&gt;
+&lt;!-- Copy from here for robot crane --&gt;
 
     &lt;body name="link_base_plate" pos="0 0 0.020" euler="0 0 0"&gt;
       &lt;geom type="box" size="0.050 0.050 0.020" rgba="1.0 0.5 0.0 1"/&gt;
@@ -878,6 +900,7 @@ touch robot_arm.mjcf</div>
       &lt;/body&gt;
     &lt;/body&gt;
 
+&lt;!-- Copy upto here for robot_crane --&gt;
   &lt;/worldbody&gt;
 
   &lt;actuator&gt;
@@ -938,20 +961,71 @@ touch robot_arm.mjcf</div>
         <div class="exercise-card reveal">
             <h3>Exercise 2.3 — Assemble the Robot Crane</h3>
             <ol>
-                <li>Create <code>robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.</li>
-                <li>Copy the <strong>entire contents</strong> of <code>robot_base.mjcf</code> into <code>robot_crane.mjcf</code>. Change the <code>model</code> name to <code>robot_crane</code>.</li>
-                <li>Copy the contents inside <code>&lt;worldbody&gt;</code> from <code>robot_arm.mjcf</code> and paste it <strong>immediately under <code>link_chassis</code></strong>, inside <code>robot_crane.mjcf</code>'s <code>&lt;worldbody&gt;</code>.
+                <li value="1">Create <code>robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>cd ~/ros2_ws/mjcf
+touch robot_crane.mjcf</code></pre>
+                </li>
+                <li value="2">Copy the <strong>entire contents</strong> of <code>robot_base.mjcf</code> into <code>robot_crane.mjcf</code>. Change the <code>model</code> name from <code>robot_base</code>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/robot_crane_mjcf.png" alt="Robot base"></div>
+                    <p>to <code>robot_crane</code>.</p>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/robot_crane_mjcf_2.png" alt="Robot base"></div>
+                </li>
+                <li value="3">Copy the contents inside <code>&lt;worldbody&gt;</code> from <code>robot_arm.mjcf</code> and paste it <strong>immediately under <code>link_chassis</code></strong>, inside <code>robot_crane.mjcf</code>'s <code>&lt;worldbody&gt;</code> as shown below.
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/robot_arm_mjcf.png" alt="Robot arm copy start"></div>
+                    <p>till line 140.</p>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/robot_arm_continued.png" alt="Robot arm copy end"></div>
                     <div class="callout callout-note" style="margin-top:8px;"><strong>Note</strong> Preserve body hierarchy — the entire arm description must sit one level inside the base's <code>link_chassis</code>.</div>
                 </li>
-                <li>Update the <code>pos</code> of <code>link_base_plate</code> (the arm's root) so the arm sits on top of the chassis.
-                    <div class="callout callout-tip" style="margin-top:8px;"><strong>Hint</strong> New Z = (chassis height) + (base plate height). Leave X and Y at zero.</div>
+                <li value="4">Now in robot_crane.mjcf Update the <code>pos</code> of <code>link_base_plate</code> (the arm's root) so the arm sits on top of the chassis as shown below.
+                    <div class="callout callout-tip" style="margin-top:8px;"><strong>Hint</strong> New Z = (chassis height)0.050 + (base plate height)0.020 = <code>0.070</code>. Leave X and Y at zero.</div>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/ek.png" alt="height change"></div>
                 </li>
-                <li>Merge the <code>&lt;default&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;default&gt;</code>.</li>
-                <li>Merge the <code>&lt;actuator&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;actuator&gt;</code>.</li>
-                <li>Merge the <code>&lt;contact&gt;</code> tag contents from <code>robot_arm.mjcf</code> into <code>robot_crane.mjcf</code>'s <code>&lt;contact&gt;</code>.</li>
-                <li>Launch <code>robot_crane.mjcf</code> to check it's valid and error-free:</li>
+                <li value="5">Copy the following <code>&lt;default&gt;</code> tag contents:
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;default class="arm"&gt;
+      &lt;joint limited="true" armature="0.1" damping="1.0"/&gt;
+      &lt;position kp="10" forcerange="-2.0 2.0"/&gt;
+    &lt;/default&gt;
+    &lt;default class="gripper"&gt;
+      &lt;joint limited="true" armature="0.1" damping="1.0"/&gt;
+      &lt;position kp="10" forcerange="-5.0 5.0"/&gt;
+    &lt;/default&gt;</code></pre>
+                </li>
+                <li value="6">Paste into <code>robot_crane.mjcf</code>'s <code>&lt;default&gt;</code> as shown below:
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/do.png" alt="default"></div>
+                </li>
+                <li value="7">Copy the <code>&lt;actuator&gt;</code> tag contents:
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;position class="arm" name="arm_base" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_base_plate_to_base_dome"/&gt;
+    &lt;position class="arm" name="arm_link1" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_base_dome_to_arm1"/&gt;
+    &lt;position class="arm" name="arm_link2" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_arm1_to_arm2"/&gt;
+    &lt;position class="arm" name="arm_link3" ctrllimited="true" ctrlrange="-1.57080 1.57080" gear="1" kv="1.0" joint="joint_arm2_to_arm3"/&gt;
+
+    &lt;position class="gripper" name="finger_left" ctrllimited="true" ctrlrange="-0.01 0.01" gear="1" kv="1.0" joint="joint_base_gripper_to_finger_left"/&gt;
+    &lt;position class="gripper" name="finger_right" ctrllimited="true" ctrlrange="-0.01 0.01" gear="1" kv="1.0" joint="joint_base_gripper_to_finger_right"/&gt;</code></pre>
+                </li>
+                <li value="8">Paste  into <code>robot_crane.mjcf</code>'s <code>&lt;actuator&gt;</code>as shown below:
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/teen.png" alt="actuator"></div>
+                </li>
+                <li value="9">Copy the <code>&lt;contact&gt;</code> tag contents :
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;exclude body1="link_base_plate" body2="link_base_dome"/&gt;
+
+    &lt;exclude body1="link_base_dome" body2="link_arm1"/&gt;
+    &lt;exclude body1="link_arm1" body2="link_arm2"/&gt;
+
+    &lt;exclude body1="link_arm_connect1" body2="link_arm2"/&gt;
+    &lt;exclude body1="link_arm2" body2="link_arm3"/&gt;
+
+    &lt;exclude body1="link_arm_connect2" body2="link_arm3"/&gt;
+    &lt;exclude body1="link_arm3" body2="link_base_gripper"/&gt;
+
+    &lt;exclude body1="link_base_gripper" body2="link_finger_left"/&gt;
+    &lt;exclude body1="link_base_gripper" body2="link_finger_right"/&gt;</code></pre>
+                    <p>Paste  into <code>robot_crane.mjcf</code>'s <code>&lt;contact&gt;</code> as shown below:</p>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat-course-projects/chaar.png" alt="contact"></div>
+                </li>
+                <li value="8">Launch <code>robot_crane.mjcf</code> to check it's valid and error-free:</li>
             </ol>
 
+            <p><strong>Execute in Terminal</strong></p>
             <div class="terminal">
                 <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
                 <div class="terminal-body">cd ~/ros2_ws/mjcf
@@ -961,24 +1035,27 @@ touch robot_arm.mjcf</div>
             <p><strong>Expected Output:</strong></p>
             <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/13-robot-crane-assembled-raw.png" alt="Robot crane assembled"></div>
 
-            <p style="margin-top:14px;"><strong>9.</strong> Update the camera view under <strong>Visualization</strong>:</p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
-                    <tbody>
-                        <tr><td>Field of view</td><td>45</td></tr>
-                        <tr><td>Center</td><td><code>0 0 0.2</code></td></tr>
-                        <tr><td>Azimuth</td><td>-135</td></tr>
-                        <tr><td>Elevation</td><td>-15</td></tr>
-                        <tr><td>Extent</td><td>0.75</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <p>You can edit these directly in <code>robot_crane.mjcf</code> under <code>&lt;visual&gt;</code>/<code>&lt;statistic&gt;</code>, or use your own values.</p>
-
-            <p><strong>10.</strong> Re-launch to confirm the visualization change took effect:</p>
-            <p><strong>Expected Output:</strong></p>
-            <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/14-robot-crane-camera-adjusted.png" alt="Robot crane with adjusted camera view"></div>
+            <ol style="margin-top:14px;">
+                <li value="9">Update the camera view under <strong>Visualization</strong>:
+                    <div class="table-wrap" style="margin-top:8px;">
+                        <table>
+                            <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+                            <tbody>
+                                <tr><td>Field of view</td><td>45</td></tr>
+                                <tr><td>Center</td><td><code>0 0 0.2</code></td></tr>
+                                <tr><td>Azimuth</td><td>-135</td></tr>
+                                <tr><td>Elevation</td><td>-15</td></tr>
+                                <tr><td>Extent</td><td>0.75</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>You can edit these directly in <code>robot_crane.mjcf</code> under <code>&lt;visual&gt;</code>/<code>&lt;statistic&gt;</code>, or use your own values.</p>
+                </li>
+                <li value="10">Re-launch to confirm the visualization change took effect:
+                    <p><strong>Expected Output:</strong></p>
+                    <div class="img-frame"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/14-robot-crane-camera-adjusted.png" alt="Robot crane with adjusted camera view"></div>
+                </li>
+            </ol>
 
             <div class="exercise-end">✓ End of Exercise 2.3</div>
         </div>
@@ -990,14 +1067,20 @@ touch robot_arm.mjcf</div>
         <div class="exercise-card reveal">
             <h3>Exercise 2.4 — Create the Scene</h3>
             <ol>
-                <li>Create <code>scene_robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.</li>
-                <li>Paste:</li>
+                <li value="1">Create <code>scene_robot_crane.mjcf</code> inside <code>~/ros2_ws/mjcf</code>.
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>touch ~/ros2_ws/mjcf/scene_robot_crane.mjcf
+code .</code></pre>
+                </li>
+                <li value="2">Paste:</li>
             </ol>
 
             <pre class="has-lang"><span class="pre-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;?xml version="1.0"?&gt;
 
 &lt;mujoco model="scene_robot_crane"&gt;
 
+&lt;!-- Add include tag below --&gt;
+
+&lt;!-- Add the Visual and Statistic Content below --&gt;
   &lt;asset&gt;
     &lt;texture type="skybox" builtin="gradient"
              rgb1="1 1 1" rgb2="0 0 0"
@@ -1017,11 +1100,22 @@ touch robot_arm.mjcf</div>
 &lt;/mujoco&gt;</code></pre>
 
             <ol start="3">
-                <li>Copy <strong>only</strong> the <code>&lt;visual&gt;</code> and <code>&lt;statistic&gt;</code> tag contents from <code>robot_crane.mjcf</code> into this scene file.</li>
-                <li>Add an <code>&lt;include&gt;</code> tag right under <code>&lt;mujoco&gt;</code> to pull in the <code>robot_crane.mjcf</code> model file, then save.</li>
+                <li>Copy <strong>only</strong> the <code>&lt;visual&gt;</code> and <code>&lt;statistic&gt;</code> tag contents from <code>robot_crane.mjcf</code> into this scene file.
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>  &lt;visual&gt;
+    &lt;headlight diffuse="0.75 0.75 0.75" ambient="0.50 0.50 0.50" specular="0.25 0.25 0.25"/&gt;
+    &lt;rgba haze="0.20 0.40 0.60 1.00"/&gt;
+    &lt;global fovy="30" azimuth="-135" elevation="15"/&gt;
+  &lt;/visual&gt;
+
+  &lt;statistic center="0 0 0" extent="0.50"/&gt;</code></pre>
+                </li>
+                <li>Add an <code>&lt;include&gt;</code> tag right under <code>&lt;mujoco&gt;</code> to pull in the <code>robot_crane.mjcf</code> model file, then save.
+                    <pre class="has-lang"><span class="pre-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;include file="robot_crane.mjcf"/&gt;</code></pre>
+                </li>
                 <li>Launch it:</li>
             </ol>
 
+            <p><strong>Execute in Terminal</strong></p>
             <div class="terminal">
                 <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
                 <div class="terminal-body">cd ~/ros2_ws/mjcf
@@ -1045,7 +1139,7 @@ touch robot_arm.mjcf</div>
     &lt;!-- rest of the model data --&gt;
   &lt;/body&gt;</code></pre>
 
-        <div class="callout callout-danger reveal"><strong>Caution — Root Cause</strong> <code>link_chassis</code> has <strong>no joint defined</strong>, so it defaults to a <strong>fixed</strong> joint in MuJoCo. The ground-plane is also fixed, both at <code>pos="0 0 0"</code> — so they overlap.</div>
+        <p class="reveal"><code>link_chassis</code> has <strong>no joint defined</strong>, so it defaults to a <strong>fixed</strong> joint in MuJoCo. The ground-plane is also fixed, both at <code>pos="0 0 0"</code> — so they overlap.</p>
 
         <p class="reveal"><strong>The fix:</strong> the base needs to <em>move</em>, so it can't be fixed. Give it a <strong>free</strong> joint (6 degrees of freedom):</p>
 
@@ -1093,7 +1187,7 @@ touch robot_arm.mjcf</div>
         <p class="reveal"><strong>Expected Output:</strong> (sped up 4x — real-time will be slower)</p>
         <div class="img-frame reveal"><img loading="lazy" src="https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_responsive/niat_coding_questions/17-robot-teleop-demo.png" alt="Robot teleop demo via sliders"></div>
 
-        <p class="reveal">You now have a fully assembled, drivable mobile manipulator in MuJoCo.</p>
+        <p class="reveal">You now have a fully assembled, drivable mobile manipulator in MuJoCo. Next: sensors.</p>
 
         <hr>
 
