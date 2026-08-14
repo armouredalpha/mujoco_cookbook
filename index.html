@@ -2158,6 +2158,7 @@ ros2 launch robot_crane_mujoco simulation.launch.py</div>
         <p class="reveal">Check the topics:</p>
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">ros2 topic list</div>
         </div>
         <div class="terminal reveal">
@@ -2173,6 +2174,7 @@ ros2 launch robot_crane_mujoco simulation.launch.py</div>
 
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">ros2 topic echo /ranges --once</div>
         </div>
         <div class="terminal reveal">
@@ -2187,6 +2189,7 @@ right: 2.213
 
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">ros2 topic echo /odometry --once</div>
         </div>
         <div class="terminal reveal">
@@ -2206,6 +2209,7 @@ quaternion:
 
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">ros2 topic echo /accgyrmag --once</div>
         </div>
         <div class="terminal reveal">
@@ -2235,6 +2239,7 @@ magnetometer:
         <p class="reveal">Create the file:</p>
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+            <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">cd ~/ros2_ws/src/robot_crane_mujoco/robot_crane_mujoco
 touch ./simple_ros2_example.py</div>
         </div>
@@ -2508,6 +2513,7 @@ def generate_launch_description():
 
         <div class="terminal reveal">
             <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="tbar-label">terminal (2nd, alongside simulation.launch.py)</span><button class="copy-btn" onclick="copyTerminal(this)">Copy</button></div>
+           <div class="terminal-body">source /opt/ros/humble/setup.bash</div>
             <div class="terminal-body">cd ~/ros2_ws && colcon build && source install/setup.bash
 
 ros2 launch robot_crane_mujoco simple_ros2_example.launch.py</div>
